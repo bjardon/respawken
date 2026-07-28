@@ -25,8 +25,9 @@ enum Probe {
                         .compactMap { $0 }.joined(separator: " · ")
                     print("  \(meta)")
                     for window in snapshot.windows {
-                        let resets = window.resetsAt.map { " resets in \(Format.countdown(to: $0))" } ?? ""
-                        print("  - \(window.title): \(Format.percent(window.clamped))\(resets)")
+                        let suffix = window.resetsAt.map { " resets in \(Format.countdown(to: $0))" }
+                            ?? (window.isActive ? "" : " (not started)")
+                        print("  - \(window.title): \(Format.percent(window.clamped))\(suffix)")
                     }
                     if let note = snapshot.note { print("  note: \(note)") }
                 case .signedOut(let hint):

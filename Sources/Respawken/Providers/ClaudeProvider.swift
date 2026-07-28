@@ -89,16 +89,25 @@ struct ClaudeProvider: UsageProvider {
     // MARK: - Payload
 
     /// Windows Anthropic reports, in the order they should appear.
-    private static let knownWindows: [(key: String, title: String)] = [
-        ("five_hour", "Session (5-hour)"),
-        ("seven_day", "Weekly"),
-        ("seven_day_opus", "Weekly · Opus"),
-        ("seven_day_sonnet", "Weekly · Sonnet"),
-        ("seven_day_routines", "Weekly · Routines"),
-        ("seven_day_cowork", "Weekly · Cowork"),
+    /// Each window's payload key, display name, and the matching `kind` in the `limits` array.
+    private static let knownWindows: [(key: String, title: String, kind: String)] = [
+        ("five_hour", "Session (5-hour)", "session"),
+        ("seven_day", "Weekly", "weekly_all"),
+        ("seven_day_opus", "Weekly · Opus", "weekly_opus"),
+        ("seven_day_sonnet", "Weekly · Sonnet", "weekly_sonnet"),
+        ("seven_day_routines", "Weekly · Routines", "weekly_routines"),
+        ("seven_day_cowork", "Weekly · Cowork", "weekly_cowork"),
     ]
 
     private func parse(_ json: [String: Any], credentials: Credentials) -> ProviderSnapshot {
+        // The parallel `limits` array is the only place that says whether a window is running.
+        var activeByKind: [String: Bool] = [:]
+        for limit in json["limits"] as? [[String: Any]] ?? [] {
+            if let kind = limit.string("kind") {
+                activeByKind[kind] = limit["is_active"] as? Bool ?? true
+            }
+        }
+
         var windows: [UsageWindow] = []
         for entry in Self.knownWindows {
             guard let node = json.dict(entry.key),
@@ -108,7 +117,8 @@ struct ClaudeProvider: UsageProvider {
                 id: entry.key,
                 title: entry.title,
                 usedPercent: used,
-                resetsAt: node.date("resets_at", "reset_at", "resetsAt")
+                resetsAt: node.date("resets_at", "reset_at", "resetsAt"),
+                isActive: activeByKind[entry.kind] ?? true
             ))
         }
 

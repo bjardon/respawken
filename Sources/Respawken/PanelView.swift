@@ -167,6 +167,10 @@ private struct WindowRow: View {
                     .font(.system(size: 9))
                     .foregroundStyle(.tertiary)
                     .monospacedDigit()
+            } else if !window.isActive {
+                Text("not started")
+                    .font(.system(size: 9))
+                    .foregroundStyle(.tertiary)
             }
         }
     }

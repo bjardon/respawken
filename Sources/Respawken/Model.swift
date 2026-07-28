@@ -41,6 +41,9 @@ struct UsageWindow: Identifiable {
     /// 0...100
     let usedPercent: Double
     let resetsAt: Date?
+    /// False when the window exists but hasn't started — an idle Claude session window
+    /// reports 0% with no reset time, which shouldn't read the same as "plenty left".
+    var isActive: Bool = true
 
     var clamped: Double { min(max(usedPercent, 0), 100) }
 }
