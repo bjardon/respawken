@@ -61,7 +61,7 @@ enum ProviderOutcome {
     case ok(ProviderSnapshot)
     /// Provider is installed but not authenticated. Carries a hint on how to fix it.
     case signedOut(String)
-    case failed(String)
+    case failed(String, transient: Bool = false)
 }
 
 struct ProviderResult {
@@ -72,6 +72,16 @@ struct ProviderResult {
     var snapshot: ProviderSnapshot? {
         if case .ok(let s) = outcome { return s }
         return nil
+    }
+
+    var outcomeFailureMessage: String? {
+        if case .failed(let reason, _) = outcome { return reason }
+        return nil
+    }
+
+    var isTransientFailure: Bool {
+        if case .failed(_, let transient) = outcome { return transient }
+        return false
     }
 
     /// Highest utilization across windows, used for the menu bar summary.

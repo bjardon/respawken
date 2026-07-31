@@ -41,6 +41,8 @@ struct CursorProvider: UsageProvider {
             return .ok(parse(json))
         } catch let failure as HTTP.Failure where failure.status == 401 {
             return .signedOut("Cursor session rejected — sign in again")
+        } catch let failure as HTTP.Failure {
+            return .failed(failure.localizedDescription, transient: failure.isTransient)
         } catch {
             return .failed(error.localizedDescription)
         }

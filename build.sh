@@ -6,7 +6,7 @@ cd "$(dirname "$0")"
 
 APP_NAME="Respawken"
 BUNDLE_ID="com.bjardon.respawken"
-VERSION="0.1.0"
+VERSION="${RESPAWKEN_VERSION:-0.1.0}"
 DIST="dist"
 APP="$DIST/$APP_NAME.app"
 
@@ -37,9 +37,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 </plist>
 PLIST
 
-# A stable ad-hoc identity lets macOS remember the Keychain ACL decision between launches.
-codesign --force --sign - --identifier "$BUNDLE_ID" "$APP" >/dev/null 2>&1 || \
-    echo "warning: ad-hoc signing failed; Keychain may re-prompt each launch"
+codesign --force --sign - --identifier "$BUNDLE_ID" "$APP" >/dev/null 2>&1 || true
 
 echo "Built $APP"
 

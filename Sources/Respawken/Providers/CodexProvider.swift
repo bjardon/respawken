@@ -37,6 +37,9 @@ struct CodexProvider: UsageProvider {
             if let failure = error as? HTTP.Failure, failure.status == 401 {
                 return .signedOut("Token expired — run `codex login`")
             }
+            if let failure = error as? HTTP.Failure {
+                return .failed(failure.localizedDescription, transient: failure.isTransient)
+            }
             return .failed(error.localizedDescription)
         }
     }

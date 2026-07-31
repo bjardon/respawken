@@ -41,7 +41,7 @@ you to log in again and stores nothing of its own.
 | --- | --- | --- |
 | **Codex** | `~/.codex/auth.json` → `chatgpt.com/backend-api/wham/usage` | Falls back to the `rate_limits` block in the newest session log in `~/.codex/sessions`, so it still shows last-known values offline. |
 | **Cursor** | `state.vscdb` → `cursor.com/api/usage-summary` | Reuses the bearer token Cursor.app already holds, so no browser cookie decryption. Cursor bills monthly, so "resets" is the end of the billing cycle. |
-| **Claude Code** | `~/.claude/.credentials.json` or the `Claude Code-credentials` Keychain item → `api.anthropic.com/api/oauth/usage` | Requires `claude auth login`. The token needs the `user:profile` scope; inference-only tokens can't read usage. The response carries no account email. |
+| **Claude Code** | `~/.claude/.credentials.json` or the `Claude Code-credentials` Keychain item → `api.anthropic.com/api/oauth/usage` | Requires `claude auth login`. Access tokens expire after ~8 hours; respawken refreshes them via `platform.claude.com/v1/oauth/token` and writes the rotated tokens back so Claude Code stays in sync. The usage endpoint returns no account email. |
 
 Providers are polled every 2 minutes, concurrently, with a 12-second timeout each. One provider
 being slow or signed out never blocks the others.
@@ -52,14 +52,26 @@ being slow or signed out never blocks the others.
 skips locking and WAL recovery entirely. A point lookup returns in ~13 ms and never touches the
 copy that Cursor itself is writing.
 
-**Reading the Claude Keychain item prompts for your password.** That read costs several seconds
-the first time a given binary asks for it; afterwards macOS caches the authorization for the life
-of the process. respawken keeps that cost down by polling the item's *modification date* first
-(17 ms, no authorization needed) and only reading the secret when Claude Code has actually
-rewritten it — a login or a token refresh.
+**Claude's credentials are read via `/usr/bin/security`, not `SecItemCopyMatching`.** Asking for
+that Keychain item in-process raises an authorization prompt and takes ~8 seconds. Worse, macOS
+pins the resulting "Always Allow" grant to the binary's code hash, so every rebuild prompts
+again — signing with a real certificate and a hash-free designated requirement does not change
+that (tested, it doesn't).
 
-Click **Always Allow** on the prompt to stop it recurring. Note that the grant is bound to the
-exact binary, so rebuilding the app will prompt again.
+Claude Code's item already grants access to Apple's `security` tool, so shelling out to it reads
+the same secret in ~20 ms and never prompts, on any build. The modification-date check is still
+there to avoid spawning a process on every poll.
+
+**Claude access tokens expire after ~8 hours.** Without a refresh, overnight polls hit 401 and
+the panel asked you to re-login every morning even though the refresh token was still valid for
+weeks. respawken now refreshes via Claude Code's public OAuth client
+(`platform.claude.com/v1/oauth/token`) when the access token is expired or near expiry, and
+writes the rotated tokens back to the Keychain so the CLI and the menu bar stay on the same
+session. Cloudflare on that host bans non-CLI user agents, so the request uses the installed
+`claude` version string as its User-Agent.
+
+**429s are treated as soft failures.** A rate-limited poll keeps the last good reading instead of
+blanking the provider.
 
 ## Layout
 

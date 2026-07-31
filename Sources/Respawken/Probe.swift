@@ -32,7 +32,7 @@ enum Probe {
                     if let note = snapshot.note { print("  note: \(note)") }
                 case .signedOut(let hint):
                     print("  signed out — \(hint)")
-                case .failed(let reason):
+                case .failed(let reason, _):
                     print("  failed — \(reason)")
                 }
                 print("")

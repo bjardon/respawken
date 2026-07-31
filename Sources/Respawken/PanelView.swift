@@ -118,7 +118,7 @@ private struct ProviderRow: View {
             case .signedOut(let hint):
                 message(hint, color: .secondary)
 
-            case .failed(let reason):
+            case .failed(let reason, _):
                 message(reason, color: Color(red: 0.93, green: 0.35, blue: 0.32))
             }
         }

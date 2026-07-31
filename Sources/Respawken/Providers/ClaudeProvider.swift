@@ -4,24 +4,46 @@ import Foundation
 /// that backs the CLI's own `/usage` view.
 ///
 /// Credentials live either in `~/.claude/.credentials.json` or in the `Claude Code-credentials`
-/// Keychain item. On Claude Code 2.1.x that Keychain item is often present but stripped of its
-/// tokens when logged out, which reads as "signed out" rather than an error.
+/// Keychain item. Access tokens expire after eight hours; this provider refreshes them via
+/// Claude Code's public OAuth client and writes the rotated tokens back so the CLI stays in sync.
 struct ClaudeProvider: UsageProvider {
     let id = ProviderID.claude
 
     /// The usage endpoint needs `user:profile`; inference-only tokens are rejected.
     private static let requiredScope = "user:profile"
+    private static let keychainService = "Claude Code-credentials"
+    /// Claude Code's public OAuth client id — same one the CLI uses.
+    private static let clientID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
+    private static let tokenURL = "https://platform.claude.com/v1/oauth/token"
+    private static let usageURL = "https://api.anthropic.com/api/oauth/usage"
+    /// Refresh a few minutes early so overnight polls don't race the expiry.
+    private static let refreshSkew: TimeInterval = 5 * 60
 
-    struct Credentials {
-        let accessToken: String
-        let scopes: [String]
-        let subscriptionType: String?
-        let rateLimitTier: String?
+    private struct Credentials {
+        var accessToken: String
+        var refreshToken: String?
+        var expiresAt: Date?
+        var scopes: [String]
+        var subscriptionType: String?
+        var rateLimitTier: String?
+        /// Full Keychain/file blob, so a refresh can rewrite without dropping `mcpOAuth` etc.
+        var raw: [String: Any]
+        var keychainAccount: String?
+        var source: Source
+
+        enum Source {
+            case file(URL)
+            case keychain
+        }
+
+        var isExpiredOrNearExpiry: Bool {
+            guard let expiresAt else { return false }
+            return expiresAt.timeIntervalSinceNow <= ClaudeProvider.refreshSkew
+        }
     }
 
-    /// Remembers the last Keychain read and the item's modification date, so the expensive
-    /// authorized read happens only when Claude Code actually rewrites its credentials
-    /// (a login or a token refresh) instead of on every poll.
+    /// Remembers the last Keychain read and the item's modification date so we don't re-spawn
+    /// `security` on every poll unless Claude Code (or we) rewrote the credentials.
     private actor CredentialCache {
         static let shared = CredentialCache()
 
@@ -29,60 +51,216 @@ struct ClaudeProvider: UsageProvider {
         private var cached: Credentials?
         private var loaded = false
 
-        func credentials(service: String, decode: (Data) -> Credentials?) -> Credentials? {
-            let current = Keychain.modificationDate(service: service)
+        func credentials(load: () -> Credentials?) -> Credentials? {
+            let current = Keychain.modificationDate(service: ClaudeProvider.keychainService)
             if loaded, current == stamp { return cached }
 
-            cached = Keychain.genericPassword(service: service).flatMap(decode)
+            cached = load()
             stamp = current
             loaded = true
             return cached
         }
+
+        func replace(_ credentials: Credentials) {
+            cached = credentials
+            stamp = Keychain.modificationDate(service: ClaudeProvider.keychainService)
+            loaded = true
+        }
     }
 
     func fetch() async -> ProviderOutcome {
-        guard let credentials = await loadCredentials() else {
+        guard var credentials = await loadCredentials() else {
             return .signedOut("Run `claude auth login`")
         }
         guard credentials.scopes.isEmpty || credentials.scopes.contains(Self.requiredScope) else {
             return .signedOut("Token lacks \(Self.requiredScope) — re-run `claude auth login`")
         }
 
+        if credentials.isExpiredOrNearExpiry {
+            if let outcome = mapRefresh(await refresh(&credentials)) { return outcome }
+        }
+
         do {
-            let json = try await HTTP.getJSON(
-                "https://api.anthropic.com/api/oauth/usage",
+            return .ok(parse(try await fetchUsage(token: credentials.accessToken), credentials: credentials))
+        } catch let failure as HTTP.Failure where failure.status == 401 || failure.status == 403 {
+            // Token may have been revoked mid-flight; try one refresh before asking the user.
+            if let outcome = mapRefresh(await refresh(&credentials)) { return outcome }
+            do {
+                return .ok(parse(try await fetchUsage(token: credentials.accessToken), credentials: credentials))
+            } catch {
+                return mapUsageError(error)
+            }
+        } catch {
+            return mapUsageError(error)
+        }
+    }
+
+    private func mapUsageError(_ error: Error) -> ProviderOutcome {
+        if let failure = error as? HTTP.Failure {
+            return .failed(failure.localizedDescription, transient: failure.isTransient)
+        }
+        return .failed(error.localizedDescription)
+    }
+
+    private func fetchUsage(token: String) async throws -> [String: Any] {
+        try await HTTP.getJSON(Self.usageURL, headers: [
+            "Authorization": "Bearer \(token)",
+            "anthropic-beta": "oauth-2025-04-20",
+            "Accept": "application/json",
+            "User-Agent": userAgent(),
+        ])
+    }
+
+    // MARK: - OAuth refresh
+
+    private enum RefreshResult {
+        case ok
+        case signedOut(String)
+        case failed(String, transient: Bool = false)
+    }
+
+    private func refresh(_ credentials: inout Credentials) async -> RefreshResult {
+        guard let refreshToken = credentials.refreshToken, !refreshToken.isEmpty else {
+            return .signedOut("Session expired — run `claude auth login`")
+        }
+
+        do {
+            let json = try await HTTP.postJSON(
+                Self.tokenURL,
                 headers: [
-                    "Authorization": "Bearer \(credentials.accessToken)",
-                    "anthropic-beta": "oauth-2025-04-20",
+                    "Content-Type": "application/json",
                     "Accept": "application/json",
+                    "User-Agent": userAgent(),
+                ],
+                body: [
+                    "grant_type": "refresh_token",
+                    "refresh_token": refreshToken,
+                    "client_id": Self.clientID,
                 ]
             )
-            return .ok(parse(json, credentials: credentials))
-        } catch let failure as HTTP.Failure where failure.status == 401 || failure.status == 403 {
+
+            guard let access = json.string("access_token"), !access.isEmpty else {
+                return .failed("Refresh returned no access token")
+            }
+
+            credentials.accessToken = access
+            if let rotated = json.string("refresh_token"), !rotated.isEmpty {
+                credentials.refreshToken = rotated
+            }
+            if let seconds = json.number("expires_in") {
+                credentials.expiresAt = Date().addingTimeInterval(seconds)
+            }
+
+            persist(credentials)
+            await CredentialCache.shared.replace(credentials)
+            return .ok
+        } catch let failure as HTTP.Failure where failure.status == 400 || failure.status == 401 {
+            // invalid_grant / revoked refresh token — only a fresh login helps.
             return .signedOut("Session expired — run `claude auth login`")
+        } catch let failure as HTTP.Failure where failure.isTransient {
+            return .failed(failure.localizedDescription, transient: true)
         } catch {
             return .failed(error.localizedDescription)
         }
     }
 
+    private func mapRefresh(_ result: RefreshResult) -> ProviderOutcome? {
+        switch result {
+        case .ok: return nil
+        case .signedOut(let hint): return .signedOut(hint)
+        case .failed(let reason, let transient): return .failed(reason, transient: transient)
+        }
+    }
+
+    private func persist(_ credentials: Credentials) {
+        var raw = credentials.raw
+        var oauth = raw.dict("claudeAiOauth") ?? [:]
+        oauth["accessToken"] = credentials.accessToken
+        if let refresh = credentials.refreshToken {
+            oauth["refreshToken"] = refresh
+        }
+        if let expires = credentials.expiresAt {
+            oauth["expiresAt"] = Int(expires.timeIntervalSince1970 * 1000)
+        }
+        raw["claudeAiOauth"] = oauth
+
+        guard let data = try? JSONSerialization.data(withJSONObject: raw, options: [.sortedKeys]) else { return }
+
+        switch credentials.source {
+        case .file(let url):
+            try? data.write(to: url, options: .atomic)
+        case .keychain:
+            let account = credentials.keychainAccount
+                ?? Keychain.account(service: Self.keychainService)
+                ?? NSUserName()
+            _ = Keychain.updateGenericPassword(service: Self.keychainService, account: account, data: data)
+        }
+    }
+
+    private func userAgent() -> String {
+        // Cloudflare on platform.claude.com bans non-browser / non-CLI signatures (error 1010).
+        "claude-cli/\(claudeCLIVersion()) (external, cli)"
+    }
+
+    private func claudeCLIVersion() -> String {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        process.arguments = ["claude", "--version"]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = Pipe()
+        do { try process.run() } catch { return "2.0.0" }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        guard let text = String(data: data, encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              !text.isEmpty else { return "2.0.0" }
+        // e.g. "2.1.220 (Claude Code)" → "2.1.220"
+        return text.split(whereSeparator: { $0 == " " || $0 == "(" }).first.map(String.init) ?? "2.0.0"
+    }
+
+    // MARK: - Credential loading
+
     private func loadCredentials() async -> Credentials? {
         let file = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".claude/.credentials.json")
-        if let data = try? Data(contentsOf: file), let creds = decode(data) { return creds }
-        return await CredentialCache.shared.credentials(service: "Claude Code-credentials", decode: decode)
+        if let data = try? Data(contentsOf: file),
+           let creds = decode(data, source: .file(file), keychainAccount: nil) {
+            return creds
+        }
+        return await CredentialCache.shared.credentials {
+            guard let data = Keychain.genericPassword(service: Self.keychainService) else { return nil }
+            return decode(
+                data,
+                source: .keychain,
+                keychainAccount: Keychain.account(service: Self.keychainService)
+            )
+        }
     }
 
-    private func decode(_ data: Data) -> Credentials? {
+    private func decode(_ data: Data, source: Credentials.Source, keychainAccount: String?) -> Credentials? {
         guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let oauth = root.dict("claudeAiOauth"),
               let token = oauth.string("accessToken"), !token.isEmpty
         else { return nil }
 
+        let expires: Date?
+        if let ms = oauth.number("expiresAt"), ms > 0 {
+            expires = Date(timeIntervalSince1970: ms > 100_000_000_000 ? ms / 1000 : ms)
+        } else {
+            expires = nil
+        }
+
         return Credentials(
             accessToken: token,
+            refreshToken: oauth.string("refreshToken"),
+            expiresAt: expires,
             scopes: oauth["scopes"] as? [String] ?? [],
             subscriptionType: oauth.string("subscriptionType"),
-            rateLimitTier: oauth.string("rateLimitTier")
+            rateLimitTier: oauth.string("rateLimitTier"),
+            raw: root,
+            keychainAccount: keychainAccount,
+            source: source
         )
     }
 

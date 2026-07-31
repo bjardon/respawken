@@ -62,6 +62,11 @@ final class UsageStore: ObservableObject {
                 }
             }
             for await result in group {
+                // Keep the last good reading across transient blips (429, gateway errors)
+                // so overnight rate limits don't blank a provider that was fine.
+                if result.isTransientFailure, case .ok = results[result.provider]?.outcome {
+                    continue
+                }
                 results[result.provider] = result
             }
         }

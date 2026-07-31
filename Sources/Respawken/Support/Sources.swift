@@ -11,9 +11,8 @@ enum Keychain {
         ]
     }
 
-    /// Reading the secret itself costs seconds on the first call of a process, because macOS
-    /// authorizes the binary against the item's ACL. Reading attributes needs no authorization
-    /// and returns in milliseconds, so callers poll this and only fetch data when it changes.
+    /// Reading attributes needs no authorization, so this is cheap and never prompts. Callers
+    /// poll it and only re-read the secret when it changes.
     static func modificationDate(service: String) -> Date? {
         var query = base(service)
         query[kSecReturnAttributes as String] = true
@@ -23,12 +22,72 @@ enum Keychain {
         return attrs[kSecAttrModificationDate as String] as? Date
     }
 
+    /// Account attribute (`acct`) for a generic-password item, needed when rewriting the secret.
+    static func account(service: String) -> String? {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/security")
+        process.arguments = ["find-generic-password", "-s", service]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = pipe
+        do { try process.run() } catch { return nil }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0,
+              let text = String(data: data, encoding: .utf8) else { return nil }
+        // security dumps lines like:     "acct"<blob>="brunojardon"
+        for line in text.split(separator: "\n") where line.contains("\"acct\"") {
+            guard let blob = line.range(of: "<blob>=\""),
+                  let end = line[blob.upperBound...].firstIndex(of: "\"") else { continue }
+            let value = String(line[blob.upperBound..<end])
+            if !value.isEmpty { return value }
+        }
+        return nil
+    }
+
+    /// Delegates the secret read to `/usr/bin/security` rather than calling `SecItemCopyMatching`
+    /// directly.
+    ///
+    /// Claude Code's Keychain item grants access to that Apple-signed tool, so it reads in ~20 ms
+    /// and never prompts. Asking for the same secret in-process triggers an authorization prompt
+    /// costing ~8 s, and macOS pins the resulting "Always Allow" grant to the binary's code hash,
+    /// so every rebuild prompts again — signing with a real certificate and a hash-free designated
+    /// requirement does not change that.
     static func genericPassword(service: String) -> Data? {
-        var query = base(service)
-        query[kSecReturnData as String] = true
-        var out: CFTypeRef?
-        guard SecItemCopyMatching(query as CFDictionary, &out) == errSecSuccess else { return nil }
-        return out as? Data
+        runSecurity(["find-generic-password", "-s", service, "-w"])
+    }
+
+    /// Overwrites an existing generic-password item via `security -U`. Used after Claude OAuth
+    /// refresh so the rotated refresh token stays shared with Claude Code.
+    @discardableResult
+    static func updateGenericPassword(service: String, account: String, data: Data) -> Bool {
+        guard let text = String(data: data, encoding: .utf8) else { return false }
+        return runSecurity([
+            "add-generic-password",
+            "-s", service,
+            "-a", account,
+            "-w", text,
+            "-U",
+        ]) != nil
+    }
+
+    @discardableResult
+    private static func runSecurity(_ arguments: [String]) -> Data? {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/security")
+        process.arguments = arguments
+        let stdout = Pipe()
+        process.standardOutput = stdout
+        process.standardError = Pipe()
+        do { try process.run() } catch { return nil }
+        let data = stdout.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else { return nil }
+        // `-w` appends a newline, which would break JSON parsing.
+        guard arguments.contains("-w"), let text = String(data: data, encoding: .utf8) else {
+            return data.isEmpty ? Data() : data
+        }
+        return text.trimmingCharacters(in: .whitespacesAndNewlines).data(using: .utf8)
     }
 }
 
@@ -130,7 +189,15 @@ enum HTTP {
     struct Failure: Error, LocalizedError {
         let status: Int
         let body: String
-        var errorDescription: String? { "HTTP \(status)" }
+        var errorDescription: String? {
+            switch status {
+            case 429: return "Rate limited — will retry"
+            case 401, 403: return "Unauthorized"
+            case -1: return body.isEmpty ? "Bad request" : body
+            default: return "HTTP \(status)"
+            }
+        }
+        var isTransient: Bool { status == 429 || status == 502 || status == 503 || status == 504 }
     }
 
     static let session: URLSession = {
@@ -142,10 +209,25 @@ enum HTTP {
     }()
 
     static func getJSON(_ url: String, headers: [String: String]) async throws -> [String: Any] {
+        try await requestJSON(url, method: "GET", headers: headers, body: nil)
+    }
+
+    static func postJSON(_ url: String, headers: [String: String], body: [String: Any]) async throws -> [String: Any] {
+        let data = try JSONSerialization.data(withJSONObject: body)
+        return try await requestJSON(url, method: "POST", headers: headers, body: data)
+    }
+
+    private static func requestJSON(
+        _ url: String,
+        method: String,
+        headers: [String: String],
+        body: Data?
+    ) async throws -> [String: Any] {
         guard let u = URL(string: url) else { throw Failure(status: -1, body: "bad url") }
         var req = URLRequest(url: u)
-        req.httpMethod = "GET"
+        req.httpMethod = method
         for (k, v) in headers { req.setValue(v, forHTTPHeaderField: k) }
+        req.httpBody = body
 
         let (data, response) = try await session.data(for: req)
         let status = (response as? HTTPURLResponse)?.statusCode ?? -1
