@@ -10,6 +10,7 @@ final class UsageStore: ObservableObject {
     @Published private(set) var tick = Date()
 
     private let providers: [any UsageProvider] = [ClaudeProvider(), CodexProvider(), CursorProvider()]
+    private let notifier = UsageNotifier.shared
     private var timer: Task<Void, Never>?
 
     static let refreshInterval: TimeInterval = 120
@@ -33,6 +34,7 @@ final class UsageStore: ObservableObject {
     func start() {
         guard timer == nil else { return }
         timer = Task { [weak self] in
+            await self?.notifier.requestAuthorizationIfNeeded()
             while !Task.isCancelled {
                 await self?.refresh()
                 // Wake once a minute so countdowns stay honest between fetches.
@@ -70,5 +72,7 @@ final class UsageStore: ObservableObject {
                 results[result.provider] = result
             }
         }
+
+        notifier.evaluate(results: results)
     }
 }

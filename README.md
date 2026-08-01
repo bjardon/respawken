@@ -46,6 +46,13 @@ you to log in again and stores nothing of its own.
 Providers are polled every 2 minutes, concurrently, with a 12-second timeout each. One provider
 being slow or signed out never blocks the others.
 
+### Notifications
+
+On first launch macOS will ask for notification permission. When allowed, respawken posts
+Notification Center alerts when any active window hits **≥98%** used, and schedules an alert for
+each window's reset time (the same timestamp that drives the “resets in …” countdown). Shared
+reset instants (e.g. Cursor's billing cycle) coalesce into one notification per provider.
+
 ### Two things worth knowing
 
 **Cursor's state database is ~3 GB.** It's opened read-only with SQLite's `immutable=1`, which
@@ -79,6 +86,7 @@ blanking the provider.
 Sources/Respawken/
   App.swift           MenuBarExtra entry point
   Store.swift         polling, concurrency, refresh cadence
+  Notifications.swift  UserNotifications: ≥98% and scheduled resets
   Model.swift         UsageWindow / ProviderSnapshot, formatting
   MenuBarIcon.swift   the three-meter status icon
   PanelView.swift     the dropdown

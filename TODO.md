@@ -16,6 +16,7 @@
 - [x] No Keychain password prompt, on any build — Claude's secret is read via `/usr/bin/security`
 - [x] Claude OAuth auto-refresh — expired access tokens refresh overnight without re-login
 - [x] Transient failures (429) keep the last good reading instead of blanking the panel
+- [x] Native Notification Center alerts at ≥98% usage and when a window's reset time fires
 
 ## Known gaps
 
@@ -26,5 +27,4 @@
 ## Not done yet
 
 - [ ] Launch at login without adding it by hand in System Settings
-- [ ] Notify when a limit crosses a threshold or a window resets
 - [ ] Remember the last good reading across restarts, so the panel isn't empty on launch
