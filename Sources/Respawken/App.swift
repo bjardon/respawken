@@ -13,7 +13,7 @@ struct RespawkenApp: App {
             PanelView(store: store)
                 .task { store.start() }
         } label: {
-            Image(nsImage: MenuBarIcon.render(results: store.results))
+            Image(nsImage: MenuBarIcon.render(store: store))
         }
         .menuBarExtraStyle(.window)
     }

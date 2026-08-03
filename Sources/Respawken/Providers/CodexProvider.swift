@@ -6,9 +6,17 @@ import Foundation
 ///      as fresh as the last Codex run.
 ///
 /// The API is preferred; the log is used when the token is missing/expired or the network is down,
-/// so the menu bar still shows something true-as-of-last-run instead of an error.
+/// so the menu bar still shows something true-as-of-last-run instead of an error. Access tokens
+/// are refreshed via Codex's public OAuth client and written back so the CLI stays in sync.
 struct CodexProvider: UsageProvider {
     let id = ProviderID.codex
+
+    /// Codex CLI's public ChatGPT OAuth client id.
+    private static let clientID = "app_EMoamEEZ73f0CkXaXp7hrann"
+    private static let tokenURL = "https://auth.openai.com/oauth/token"
+    private static let usageURL = "https://chatgpt.com/backend-api/wham/usage"
+    /// Refresh a few minutes early so overnight polls don't race the expiry.
+    private static let refreshSkew: TimeInterval = 5 * 60
 
     private var home: URL {
         if let override = ProcessInfo.processInfo.environment["CODEX_HOME"], !override.isEmpty {
@@ -17,41 +25,202 @@ struct CodexProvider: UsageProvider {
         return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".codex")
     }
 
+    private struct Credentials {
+        var accessToken: String
+        var refreshToken: String?
+        var idToken: String?
+        var accountID: String?
+        var expiresAt: Date?
+        /// Full `auth.json` blob so a refresh can rewrite without dropping unrelated keys.
+        var raw: [String: Any]
+        var path: URL
+
+        var isExpiredOrNearExpiry: Bool {
+            guard let expiresAt else { return false }
+            return expiresAt.timeIntervalSinceNow <= CodexProvider.refreshSkew
+        }
+    }
+
     func fetch() async -> ProviderOutcome {
-        guard let token = accessToken() else {
+        guard var credentials = loadCredentials() else {
             if let local = localSnapshot() { return .ok(local) }
             return .signedOut("Run `codex login`")
         }
 
+        if credentials.isExpiredOrNearExpiry {
+            if let outcome = mapRefresh(await refresh(&credentials)) { return outcome }
+        }
+
         do {
-            let json = try await HTTP.getJSON(
-                "https://chatgpt.com/backend-api/wham/usage",
-                headers: ["Authorization": "Bearer \(token)", "Accept": "application/json"]
-            )
-            return .ok(parse(json))
+            return .ok(parse(try await fetchUsage(token: credentials.accessToken)))
+        } catch let failure as HTTP.Failure where failure.status == 401 {
+            // Token may have been revoked mid-flight; try one refresh before falling back.
+            if let outcome = mapRefresh(await refresh(&credentials)) { return outcome }
+            do {
+                return .ok(parse(try await fetchUsage(token: credentials.accessToken)))
+            } catch {
+                return mapUsageError(error)
+            }
         } catch {
+            return mapUsageError(error)
+        }
+    }
+
+    private func fetchUsage(token: String) async throws -> [String: Any] {
+        try await HTTP.getJSON(Self.usageURL, headers: [
+            "Authorization": "Bearer \(token)",
+            "Accept": "application/json",
+        ])
+    }
+
+    private func mapUsageError(_ error: Error) -> ProviderOutcome {
+        if let failure = error as? HTTP.Failure, failure.status == 401 {
             if var local = localSnapshot() {
-                local.note = "API unreachable — showing last session"
+                local.note = "Token expired — showing last session"
                 return .ok(local)
             }
-            if let failure = error as? HTTP.Failure, failure.status == 401 {
-                return .signedOut("Token expired — run `codex login`")
+            return .signedOut("Token expired — run `codex login`")
+        }
+        if var local = localSnapshot() {
+            local.note = "API unreachable — showing last session"
+            return .ok(local)
+        }
+        if let failure = error as? HTTP.Failure {
+            return .failed(failure.localizedDescription, transient: failure.isTransient)
+        }
+        return .failed(error.localizedDescription)
+    }
+
+    // MARK: - OAuth refresh
+
+    private enum RefreshResult {
+        case ok
+        case signedOut(String)
+        case failed(String, transient: Bool = false)
+    }
+
+    private func refresh(_ credentials: inout Credentials) async -> RefreshResult {
+        guard let refreshToken = credentials.refreshToken, !refreshToken.isEmpty else {
+            return .signedOut("Token expired — run `codex login`")
+        }
+
+        do {
+            let json = try await HTTP.postJSON(
+                Self.tokenURL,
+                headers: [
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                ],
+                body: [
+                    "grant_type": "refresh_token",
+                    "refresh_token": refreshToken,
+                    "client_id": Self.clientID,
+                ]
+            )
+
+            guard let access = json.string("access_token"), !access.isEmpty else {
+                return .failed("Refresh returned no access token")
             }
-            if let failure = error as? HTTP.Failure {
-                return .failed(failure.localizedDescription, transient: failure.isTransient)
+
+            credentials.accessToken = access
+            if let rotated = json.string("refresh_token"), !rotated.isEmpty {
+                credentials.refreshToken = rotated
             }
+            if let idToken = json.string("id_token"), !idToken.isEmpty {
+                credentials.idToken = idToken
+            }
+            if let seconds = json.number("expires_in") {
+                credentials.expiresAt = Date().addingTimeInterval(seconds)
+            } else if let claims = JWT.payload(access), let exp = claims.number("exp") {
+                credentials.expiresAt = Date(timeIntervalSince1970: exp)
+            }
+
+            persist(credentials)
+            return .ok
+        } catch let failure as HTTP.Failure where failure.status == 400 || failure.status == 401 {
+            // invalid_grant / revoked refresh token — only a fresh login helps.
+            return .signedOut("Token expired — run `codex login`")
+        } catch let failure as HTTP.Failure where failure.isTransient {
+            return .failed(failure.localizedDescription, transient: true)
+        } catch {
             return .failed(error.localizedDescription)
         }
     }
 
-    private func accessToken() -> String? {
+    private func mapRefresh(_ result: RefreshResult) -> ProviderOutcome? {
+        switch result {
+        case .ok:
+            return nil
+        case .signedOut(let hint):
+            if var local = localSnapshot() {
+                local.note = "Token expired — showing last session"
+                return .ok(local)
+            }
+            return .signedOut(hint)
+        case .failed(let reason, let transient):
+            if var local = localSnapshot() {
+                local.note = transient
+                    ? "API unreachable — showing last session"
+                    : "Token expired — showing last session"
+                return .ok(local)
+            }
+            return .failed(reason, transient: transient)
+        }
+    }
+
+    private func persist(_ credentials: Credentials) {
+        var raw = credentials.raw
+        var tokens = raw.dict("tokens") ?? [:]
+        tokens["access_token"] = credentials.accessToken
+        if let refresh = credentials.refreshToken {
+            tokens["refresh_token"] = refresh
+        }
+        if let idToken = credentials.idToken {
+            tokens["id_token"] = idToken
+        }
+        if let accountID = credentials.accountID {
+            tokens["account_id"] = accountID
+        }
+        raw["tokens"] = tokens
+        raw["last_refresh"] = Self.timestamp(Date())
+
+        guard let data = try? JSONSerialization.data(withJSONObject: raw, options: [.sortedKeys])
+        else { return }
+        try? data.write(to: credentials.path, options: .atomic)
+    }
+
+    private static func timestamp(_ date: Date) -> String {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter.string(from: date)
+    }
+
+    // MARK: - Credential loading
+
+    private func loadCredentials() -> Credentials? {
         let path = home.appendingPathComponent("auth.json")
         guard let data = try? Data(contentsOf: path),
               let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let token = root.dict("tokens")?.string("access_token"),
-              !token.isEmpty
+              let tokens = root.dict("tokens"),
+              let access = tokens.string("access_token"), !access.isEmpty
         else { return nil }
-        return token
+
+        let expiresAt: Date?
+        if let claims = JWT.payload(access), let exp = claims.number("exp") {
+            expiresAt = Date(timeIntervalSince1970: exp)
+        } else {
+            expiresAt = nil
+        }
+
+        return Credentials(
+            accessToken: access,
+            refreshToken: tokens.string("refresh_token"),
+            idToken: tokens.string("id_token"),
+            accountID: tokens.string("account_id"),
+            expiresAt: expiresAt,
+            raw: root,
+            path: path
+        )
     }
 
     // MARK: - API payload

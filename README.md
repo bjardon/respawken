@@ -12,9 +12,9 @@ Native Swift/SwiftUI, no Dock icon, ~22 MB resident, idle at 0% CPU.
 
 ![panel](docs/panel.png)
 
-The menu bar icon is three stacked meters — Claude, Codex, Cursor, top to bottom. Fill is
-utilization, colour is severity (green / amber / red). A provider that is signed out or failing
-renders as an empty outline, so a missing reading never looks like a healthy zero.
+The menu bar icon is four stacked meters — Claude Personal, Claude Work, Codex, Cursor, top to
+bottom. Fill is utilization, colour is severity (green / amber / red). A provider that is signed
+out or failing renders as an empty outline, so a missing reading never looks like a healthy zero.
 
 ## Run it
 
@@ -39,9 +39,9 @@ you to log in again and stores nothing of its own.
 
 | Provider | Source | Notes |
 | --- | --- | --- |
-| **Codex** | `~/.codex/auth.json` → `chatgpt.com/backend-api/wham/usage` | Falls back to the `rate_limits` block in the newest session log in `~/.codex/sessions`, so it still shows last-known values offline. |
+| **Codex** | `~/.codex/auth.json` → `chatgpt.com/backend-api/wham/usage` | Access tokens expire; respawken refreshes them via `auth.openai.com/oauth/token` and writes the rotated tokens back so Codex stays in sync. Falls back to the `rate_limits` block in the newest session log in `~/.codex/sessions` when the API is unreachable or refresh fails. |
 | **Cursor** | `state.vscdb` → `cursor.com/api/usage-summary` | Reuses the bearer token Cursor.app already holds, so no browser cookie decryption. Cursor bills monthly, so "resets" is the end of the billing cycle. |
-| **Claude Code** | `~/.claude/.credentials.json` or the `Claude Code-credentials` Keychain item → `api.anthropic.com/api/oauth/usage` | Requires `claude auth login`. Access tokens expire after ~8 hours; respawken refreshes them via `platform.claude.com/v1/oauth/token` and writes the rotated tokens back so Claude Code stays in sync. The usage endpoint returns no account email. |
+| **Claude Code** | Per-account: default `~/.claude` → `Claude Code-credentials`; custom `CLAUDE_CONFIG_DIR` → `Claude Code-credentials-<sha256[:8]>` (or `$dir/.credentials.json`) → `api.anthropic.com/api/oauth/usage` | Supports multiple logins (Personal on the default path, Work on `~/.claude-oxp`). Access tokens expire after ~8 hours; respawken refreshes them via `platform.claude.com/v1/oauth/token` and writes the rotated tokens back so Claude Code stays in sync. The usage endpoint returns no account email — rows are labeled from config. |
 
 Providers are polled every 2 minutes, concurrently, with a 12-second timeout each. One provider
 being slow or signed out never blocks the others.
@@ -88,7 +88,7 @@ Sources/Respawken/
   Store.swift         polling, concurrency, refresh cadence
   Notifications.swift  UserNotifications: ≥98% and scheduled resets
   Model.swift         UsageWindow / ProviderSnapshot, formatting
-  MenuBarIcon.swift   the three-meter status icon
+  MenuBarIcon.swift   the four-meter status icon
   PanelView.swift     the dropdown
   Probe.swift         --probe and --preview
   Providers/          one file per provider

@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct PanelView: View {
@@ -93,27 +94,7 @@ private struct ProviderRow: View {
                 message("Checking…", color: .tertiary)
 
             case .ok(let snapshot):
-                if snapshot.windows.isEmpty {
-                    message(snapshot.note ?? "No usage reported", color: .secondary)
-                } else {
-                    let shared = sharedReset(snapshot.windows)
-                    ForEach(snapshot.windows) { window in
-                        WindowRow(window: window, now: now, showsReset: shared == nil)
-                    }
-                    if let shared {
-                        // Every window resets together (Cursor's billing cycle), so say it once.
-                        Text("resets in \(Format.countdown(to: shared, now: now))")
-                            .font(.system(size: 9))
-                            .foregroundStyle(.tertiary)
-                            .monospacedDigit()
-                    }
-                }
-                if let note = snapshot.note, !snapshot.windows.isEmpty {
-                    message(note, color: .secondary)
-                }
-                if snapshot.source != "api" {
-                    message(snapshot.source, color: .tertiary)
-                }
+                SnapshotBody(snapshot: snapshot, now: now)
 
             case .signedOut(let hint):
                 message(hint, color: .secondary)
@@ -121,6 +102,48 @@ private struct ProviderRow: View {
             case .failed(let reason, _):
                 message(reason, color: Color(red: 0.93, green: 0.35, blue: 0.32))
             }
+        }
+    }
+
+    private func message(_ text: String, color: some ShapeStyle) -> some View {
+        Text(text)
+            .font(.system(size: 10))
+            .foregroundStyle(color)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+private struct SnapshotBody: View {
+    let snapshot: ProviderSnapshot
+    let now: Date
+
+    var body: some View {
+        if snapshot.windows.isEmpty {
+            Text(snapshot.note ?? "No usage reported")
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+        } else {
+            let shared = sharedReset(snapshot.windows)
+            ForEach(snapshot.windows) { window in
+                WindowRow(window: window, now: now, showsReset: shared == nil)
+            }
+            if let shared {
+                // Every window resets together (Cursor's billing cycle), so say it once.
+                Text("resets in \(Format.countdown(to: shared, now: now))")
+                    .font(.system(size: 9))
+                    .foregroundStyle(.tertiary)
+                    .monospacedDigit()
+            }
+        }
+        if let note = snapshot.note, !snapshot.windows.isEmpty {
+            Text(note)
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+        }
+        if snapshot.source != "api" {
+            Text(snapshot.source)
+                .font(.system(size: 10))
+                .foregroundStyle(.tertiary)
         }
     }
 
@@ -132,13 +155,6 @@ private struct ProviderRow: View {
             return abs(date.timeIntervalSince(first)) < 60
         }
         return same ? first : nil
-    }
-
-    private func message(_ text: String, color: some ShapeStyle) -> some View {
-        Text(text)
-            .font(.system(size: 10))
-            .foregroundStyle(color)
-            .fixedSize(horizontal: false, vertical: true)
     }
 }
 

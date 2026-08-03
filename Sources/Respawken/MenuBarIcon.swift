@@ -1,23 +1,29 @@
 import AppKit
 
-/// Draws the status item as three stacked meters, one per provider, top to bottom in
-/// Claude / Codex / Cursor order. Fill length is utilization; colour is severity. A provider
-/// that is signed out or failing renders as an empty outline so a missing reading never
-/// looks like a healthy zero.
+/// Draws the status item as four stacked meters — Claude Personal, Claude Work, Codex, Cursor,
+/// top to bottom. Fill length is utilization; colour is severity. A provider that is signed out
+/// or failing renders as an empty outline so a missing reading never looks like a healthy zero.
 enum MenuBarIcon {
     private static let size = NSSize(width: 20, height: 16)
 
+    @MainActor
+    static func render(store: UsageStore) -> NSImage {
+        render(results: store.results)
+    }
+
     static func render(results: [ProviderID: ProviderResult]) -> NSImage {
+        let providers = ProviderID.allCases
         let image = NSImage(size: size, flipped: false) { _ in
-            let barHeight: CGFloat = 3
-            let gap: CGFloat = 2.5
+            let count = CGFloat(providers.count)
+            let barHeight: CGFloat = 2.4
+            let gap: CGFloat = 1.8
             let width = size.width
-            let total = barHeight * 3 + gap * 2
+            let total = barHeight * count + gap * (count - 1)
             var y = (size.height - total) / 2 + total - barHeight
 
-            for provider in ProviderID.allCases {
+            for provider in providers {
                 let track = NSRect(x: 0, y: y, width: width, height: barHeight)
-                draw(track: track, result: results[provider])
+                draw(track: track, percent: results[provider]?.peakPercent)
                 y -= (barHeight + gap)
             }
             return true
@@ -26,13 +32,13 @@ enum MenuBarIcon {
         return image
     }
 
-    private static func draw(track: NSRect, result: ProviderResult?) {
+    private static func draw(track: NSRect, percent: Double?) {
         let radius = track.height / 2
 
         NSColor.tertiaryLabelColor.withAlphaComponent(0.45).setFill()
         NSBezierPath(roundedRect: track, xRadius: radius, yRadius: radius).fill()
 
-        guard let percent = result?.peakPercent else {
+        guard let percent else {
             // No reading: outline only.
             NSColor.tertiaryLabelColor.withAlphaComponent(0.7).setStroke()
             let outline = NSBezierPath(roundedRect: track.insetBy(dx: 0.25, dy: 0.25),

@@ -71,7 +71,7 @@ final class UsageNotifier {
             fired.insert(key)
             deliver(
                 id: "exhaust.\(key)",
-                body: "\(entry.provider.title) · \(entry.window.title) is at \(Format.percent(entry.percent))"
+                body: "\(entry.provider.title) · \(entry.window.title) at \(Format.percent(entry.percent))"
             )
         }
 

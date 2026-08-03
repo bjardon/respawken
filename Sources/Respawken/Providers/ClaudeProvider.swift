@@ -1,17 +1,20 @@
+import CryptoKit
 import Foundation
 
 /// Claude Code keeps no local record of limit state, so usage has to come from the OAuth API
 /// that backs the CLI's own `/usage` view.
 ///
-/// Credentials live either in `~/.claude/.credentials.json` or in the `Claude Code-credentials`
-/// Keychain item. Access tokens expire after eight hours; this provider refreshes them via
-/// Claude Code's public OAuth client and writes the rotated tokens back so the CLI stays in sync.
+/// Credentials live either in `$CLAUDE_CONFIG_DIR/.credentials.json` or in a Keychain item
+/// named `Claude Code-credentials` (default dir) / `Claude Code-credentials-<sha256[:8]>`
+/// (custom `CLAUDE_CONFIG_DIR`). Access tokens expire after eight hours; this provider refreshes
+/// them via Claude Code's public OAuth client and writes the rotated tokens back so the CLI
+/// stays in sync.
 struct ClaudeProvider: UsageProvider {
-    let id = ProviderID.claude
+    let account: ClaudeAccount
+    var id: ProviderID { account.id }
 
     /// The usage endpoint needs `user:profile`; inference-only tokens are rejected.
     private static let requiredScope = "user:profile"
-    private static let keychainService = "Claude Code-credentials"
     /// Claude Code's public OAuth client id — same one the CLI uses.
     private static let clientID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
     private static let tokenURL = "https://platform.claude.com/v1/oauth/token"
@@ -29,6 +32,7 @@ struct ClaudeProvider: UsageProvider {
         /// Full Keychain/file blob, so a refresh can rewrite without dropping `mcpOAuth` etc.
         var raw: [String: Any]
         var keychainAccount: String?
+        var keychainService: String
         var source: Source
 
         enum Source {
@@ -42,35 +46,42 @@ struct ClaudeProvider: UsageProvider {
         }
     }
 
-    /// Remembers the last Keychain read and the item's modification date so we don't re-spawn
-    /// `security` on every poll unless Claude Code (or we) rewrote the credentials.
+    /// Remembers the last Keychain read per service so we don't re-spawn `security` on every
+    /// poll unless Claude Code (or we) rewrote the credentials.
     private actor CredentialCache {
         static let shared = CredentialCache()
 
-        private var stamp: Date?
-        private var cached: Credentials?
-        private var loaded = false
+        private struct Entry {
+            var stamp: Date?
+            var cached: Credentials?
+            var loaded = false
+        }
 
-        func credentials(load: () -> Credentials?) -> Credentials? {
-            let current = Keychain.modificationDate(service: ClaudeProvider.keychainService)
-            if loaded, current == stamp { return cached }
+        private var entries: [String: Entry] = [:]
 
-            cached = load()
-            stamp = current
-            loaded = true
-            return cached
+        func credentials(service: String, load: () -> Credentials?) -> Credentials? {
+            let current = Keychain.modificationDate(service: service)
+            if let entry = entries[service], entry.loaded, entry.stamp == current {
+                return entry.cached
+            }
+
+            let loaded = load()
+            entries[service] = Entry(stamp: current, cached: loaded, loaded: true)
+            return loaded
         }
 
         func replace(_ credentials: Credentials) {
-            cached = credentials
-            stamp = Keychain.modificationDate(service: ClaudeProvider.keychainService)
-            loaded = true
+            entries[credentials.keychainService] = Entry(
+                stamp: Keychain.modificationDate(service: credentials.keychainService),
+                cached: credentials,
+                loaded: true
+            )
         }
     }
 
     func fetch() async -> ProviderOutcome {
         guard var credentials = await loadCredentials() else {
-            return .signedOut("Run `claude auth login`")
+            return .signedOut("Run `claude auth login` (\(account.label))")
         }
         guard credentials.scopes.isEmpty || credentials.scopes.contains(Self.requiredScope) else {
             return .signedOut("Token lacks \(Self.requiredScope) — re-run `claude auth login`")
@@ -191,9 +202,13 @@ struct ClaudeProvider: UsageProvider {
             try? data.write(to: url, options: .atomic)
         case .keychain:
             let account = credentials.keychainAccount
-                ?? Keychain.account(service: Self.keychainService)
+                ?? Keychain.account(service: credentials.keychainService)
                 ?? NSUserName()
-            _ = Keychain.updateGenericPassword(service: Self.keychainService, account: account, data: data)
+            _ = Keychain.updateGenericPassword(
+                service: credentials.keychainService,
+                account: account,
+                data: data
+            )
         }
     }
 
@@ -221,24 +236,58 @@ struct ClaudeProvider: UsageProvider {
 
     // MARK: - Credential loading
 
+    /// Matches Claude Code: default dir → `Claude Code-credentials`; custom dir →
+    /// `Claude Code-credentials-` + first 8 hex chars of SHA-256(NFC(absolute path)).
+    static func keychainService(forConfigDir configDir: String?) -> String {
+        guard let configDir else { return "Claude Code-credentials" }
+        let normalized = configDir.precomposedStringWithCanonicalMapping
+        let digest = SHA256.hash(data: Data(normalized.utf8))
+        let suffix = digest.prefix(4).map { String(format: "%02x", $0) }.joined()
+        return "Claude Code-credentials-\(suffix)"
+    }
+
+    private var configDirectory: URL {
+        if let configDir = account.configDir {
+            return URL(fileURLWithPath: configDir, isDirectory: true)
+        }
+        return FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".claude", isDirectory: true)
+    }
+
+    private var keychainService: String {
+        Self.keychainService(forConfigDir: account.configDir)
+    }
+
     private func loadCredentials() async -> Credentials? {
-        let file = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".claude/.credentials.json")
+        let file = configDirectory.appendingPathComponent(".credentials.json")
         if let data = try? Data(contentsOf: file),
-           let creds = decode(data, source: .file(file), keychainAccount: nil) {
+           let creds = decode(
+            data,
+            source: .file(file),
+            keychainService: keychainService,
+            keychainAccount: nil
+           ) {
             return creds
         }
-        return await CredentialCache.shared.credentials {
-            guard let data = Keychain.genericPassword(service: Self.keychainService) else { return nil }
+
+        let service = keychainService
+        return await CredentialCache.shared.credentials(service: service) {
+            guard let data = Keychain.genericPassword(service: service) else { return nil }
             return decode(
                 data,
                 source: .keychain,
-                keychainAccount: Keychain.account(service: Self.keychainService)
+                keychainService: service,
+                keychainAccount: Keychain.account(service: service)
             )
         }
     }
 
-    private func decode(_ data: Data, source: Credentials.Source, keychainAccount: String?) -> Credentials? {
+    private func decode(
+        _ data: Data,
+        source: Credentials.Source,
+        keychainService: String,
+        keychainAccount: String?
+    ) -> Credentials? {
         guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let oauth = root.dict("claudeAiOauth"),
               let token = oauth.string("accessToken"), !token.isEmpty
@@ -260,6 +309,7 @@ struct ClaudeProvider: UsageProvider {
             rateLimitTier: oauth.string("rateLimitTier"),
             raw: root,
             keychainAccount: keychainAccount,
+            keychainService: keychainService,
             source: source
         )
     }
@@ -302,7 +352,9 @@ struct ClaudeProvider: UsageProvider {
 
         var snapshot = ProviderSnapshot(
             plan: planLabel(credentials),
-            account: json.dict("account")?.string("email") ?? json.string("email"),
+            account: json.dict("account")?.string("email")
+                ?? json.string("email")
+                ?? account.label,
             windows: windows,
             source: "api"
         )

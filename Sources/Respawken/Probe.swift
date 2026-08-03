@@ -9,7 +9,7 @@ enum Probe {
         renderPreviewIfRequested()
         guard CommandLine.arguments.contains("--probe") else { return }
 
-        let providers: [any UsageProvider] = [ClaudeProvider(), CodexProvider(), CursorProvider()]
+        let providers = UsageStore.defaultProviders()
         let done = DispatchSemaphore(value: 0)
 
         Task {
@@ -76,7 +76,7 @@ enum Probe {
         let done = DispatchSemaphore(value: 0)
 
         Task.detached {
-            let providers: [any UsageProvider] = [ClaudeProvider(), CodexProvider(), CursorProvider()]
+            let providers = UsageStore.defaultProviders()
             await withTaskGroup(of: ProviderResult.self) { group in
                 for provider in providers {
                     group.addTask {

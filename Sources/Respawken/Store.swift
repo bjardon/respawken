@@ -9,15 +9,21 @@ final class UsageStore: ObservableObject {
     /// Drives countdown labels without re-fetching.
     @Published private(set) var tick = Date()
 
-    private let providers: [any UsageProvider] = [ClaudeProvider(), CodexProvider(), CursorProvider()]
+    private let providers: [any UsageProvider]
     private let notifier = UsageNotifier.shared
     private var timer: Task<Void, Never>?
 
     static let refreshInterval: TimeInterval = 120
 
-    init(seed: [ProviderID: ProviderResult] = [:]) {
+    init(seed: [ProviderID: ProviderResult] = [:], providers: [any UsageProvider]? = nil) {
         results = seed
         lastRefresh = seed.isEmpty ? nil : Date()
+        self.providers = providers ?? Self.defaultProviders()
+    }
+
+    nonisolated static func defaultProviders() -> [any UsageProvider] {
+        ClaudeAccount.configured.map { ClaudeProvider(account: $0) }
+            + [CodexProvider(), CursorProvider()]
     }
 
     var ordered: [ProviderResult] {

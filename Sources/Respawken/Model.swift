@@ -1,8 +1,10 @@
+import AppKit
 import Foundation
 import SwiftUI
 
 enum ProviderID: String, CaseIterable, Identifiable {
-    case claude
+    case claudePersonal = "claude.personal"
+    case claudeWork = "claude.work"
     case codex
     case cursor
 
@@ -10,28 +12,39 @@ enum ProviderID: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .claude: return "Claude Code"
+        case .claudePersonal: return "Claude · Personal"
+        case .claudeWork: return "Claude · Work"
         case .codex: return "Codex"
         case .cursor: return "Cursor"
         }
     }
 
-    /// Short label used in the menu bar icon.
-    var initial: String {
-        switch self {
-        case .claude: return "CC"
-        case .codex: return "CX"
-        case .cursor: return "CU"
-        }
-    }
-
     var accent: Color {
         switch self {
-        case .claude: return Color(red: 0.85, green: 0.47, blue: 0.30)
+        case .claudePersonal, .claudeWork:
+            return Color(red: 0.85, green: 0.47, blue: 0.30)
         case .codex: return Color(red: 0.30, green: 0.78, blue: 0.62)
         case .cursor: return Color(red: 0.45, green: 0.60, blue: 0.95)
         }
     }
+}
+
+/// A Claude Code login isolated by `CLAUDE_CONFIG_DIR`.
+struct ClaudeAccount: Sendable {
+    let id: ProviderID
+    let label: String
+    /// Absolute config directory, or `nil` for the default `~/.claude` + unhashed Keychain service.
+    let configDir: String?
+
+    /// The two accounts on this machine: personal on the default path, work on `~/.claude-oxp`.
+    static let configured: [ClaudeAccount] = [
+        ClaudeAccount(id: .claudePersonal, label: "Personal", configDir: nil),
+        ClaudeAccount(
+            id: .claudeWork,
+            label: "Work",
+            configDir: NSString(string: "~/.claude-oxp").expandingTildeInPath
+        ),
+    ]
 }
 
 /// A single rate-limit window, e.g. Codex's weekly window or Cursor's billing cycle.
