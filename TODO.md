@@ -27,9 +27,16 @@
   Multi-account rows use configured labels (Personal / Work) instead.
 - Claude's Opus/Sonnet/Cowork weekly windows are parsed but all came back `null` on a Team plan,
   so those rows are still unproven.
-- Claude account list is hardcoded (default path + `~/.claude-oxp`); no settings UI yet.
 
 ## Not done yet
 
 - [ ] Launch at login without adding it by hand in System Settings
 - [ ] Remember the last good reading across restarts, so the panel isn't empty on launch
+- [ ] **Claude accounts settings** — replace the hardcoded `ClaudeAccount.configured` list
+      (Personal = default `~/.claude`, Work = `~/.claude-oxp`) with a persisted, editable
+      config. Today `ProviderID` is a fixed enum (`claudePersonal` / `claudeWork` / `codex` /
+      `cursor`), so the panel, menu bar, and notifications assume exactly two Claude slots.
+      Needed work: dynamic Claude slots (`id` + `label` + `configDir`), persist them
+      (Application Support JSON or `UserDefaults`), settings sheet on the panel to add /
+      rename / remove / reorder accounts, rebuild providers + meters from that list on save.
+      Codex and Cursor stay single-source.
