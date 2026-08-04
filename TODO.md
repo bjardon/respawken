@@ -20,6 +20,9 @@
 - [x] Claude OAuth auto-refresh — expired access tokens refresh overnight without re-login
 - [x] Transient failures (429) keep the last good reading instead of blanking the panel
 - [x] Native Notification Center alerts at ≥98% usage and when a window's reset time fires
+- [x] **Claude accounts settings** — gear opens a Settings window; add / rename / remove
+      accounts with label + config dir; persisted to Application Support; panel and
+      menu bar rebuild from that list. Codex and Cursor stay single-source.
 
 ## Known gaps
 
@@ -27,16 +30,10 @@
   Multi-account rows use configured labels (Personal / Work) instead.
 - Claude's Opus/Sonnet/Cowork weekly windows are parsed but all came back `null` on a Team plan,
   so those rows are still unproven.
+- Settings has no reorder UI yet — accounts appear in list order; add/remove works.
 
 ## Not done yet
 
 - [ ] Launch at login without adding it by hand in System Settings
 - [ ] Remember the last good reading across restarts, so the panel isn't empty on launch
-- [ ] **Claude accounts settings** — replace the hardcoded `ClaudeAccount.configured` list
-      (Personal = default `~/.claude`, Work = `~/.claude-oxp`) with a persisted, editable
-      config. Today `ProviderID` is a fixed enum (`claudePersonal` / `claudeWork` / `codex` /
-      `cursor`), so the panel, menu bar, and notifications assume exactly two Claude slots.
-      Needed work: dynamic Claude slots (`id` + `label` + `configDir`), persist them
-      (Application Support JSON or `UserDefaults`), settings sheet on the panel to add /
-      rename / remove / reorder accounts, rebuild providers + meters from that list on save.
-      Codex and Cursor stay single-source.
+- [ ] Reorder Claude accounts in Settings (drag or up/down)

@@ -1,24 +1,25 @@
 import AppKit
 
-/// Draws the status item as four stacked meters — Claude Personal, Claude Work, Codex, Cursor,
-/// top to bottom. Fill length is utilization; colour is severity. A provider that is signed out
-/// or failing renders as an empty outline so a missing reading never looks like a healthy zero.
+/// Draws the status item as stacked meters — Claude accounts (in settings order), then Codex
+/// and Cursor, top to bottom. Fill length is utilization; colour is severity. A provider that
+/// is signed out or failing renders as an empty outline so a missing reading never looks like
+/// a healthy zero.
 enum MenuBarIcon {
     private static let size = NSSize(width: 20, height: 16)
 
     @MainActor
     static func render(store: UsageStore) -> NSImage {
-        render(results: store.results)
+        render(results: store.results, order: store.providerOrder)
     }
 
-    static func render(results: [ProviderID: ProviderResult]) -> NSImage {
-        let providers = ProviderID.allCases
+    static func render(results: [ProviderID: ProviderResult], order: [ProviderID]) -> NSImage {
+        let providers = order
         let image = NSImage(size: size, flipped: false) { _ in
-            let count = CGFloat(providers.count)
-            let barHeight: CGFloat = 2.4
-            let gap: CGFloat = 1.8
+            let count = max(CGFloat(providers.count), 1)
+            let barHeight: CGFloat = min(2.4, (size.height - 1) / count * 0.7)
+            let gap: CGFloat = max(0.8, (size.height - barHeight * count) / max(count + 1, 1))
             let width = size.width
-            let total = barHeight * count + gap * (count - 1)
+            let total = barHeight * count + gap * max(count - 1, 0)
             var y = (size.height - total) / 2 + total - barHeight
 
             for provider in providers {

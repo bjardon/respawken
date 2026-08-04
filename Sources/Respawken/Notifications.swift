@@ -32,21 +32,26 @@ final class UsageNotifier {
         }
     }
 
-    func evaluate(results: [ProviderID: ProviderResult]) {
+    func evaluate(
+        results: [ProviderID: ProviderResult],
+        order: [ProviderID],
+        accounts: [ClaudeAccount]
+    ) {
         guard authorized else { return }
 
-        var currentCycles: [String: (percent: Double, provider: ProviderID, window: UsageWindow)] = [:]
+        var currentCycles: [String: (percent: Double, title: String, window: UsageWindow)] = [:]
         var desiredResets: [String: (date: Date, body: String)] = [:]
 
-        for provider in ProviderID.allCases {
+        for provider in order {
             guard let result = results[provider], case .ok(let snapshot) = result.outcome else {
                 continue
             }
+            let title = provider.title(using: accounts)
             let active = snapshot.windows.filter(\.isActive)
             for window in active {
-                currentCycles[cycleKey(provider: provider, window: window)] = (window.clamped, provider, window)
+                currentCycles[cycleKey(provider: provider, window: window)] = (window.clamped, title, window)
             }
-            collectResets(provider: provider, windows: active, into: &desiredResets)
+            collectResets(provider: provider, title: title, windows: active, into: &desiredResets)
         }
 
         evaluateExhaustion(currentCycles)
@@ -56,7 +61,7 @@ final class UsageNotifier {
     // MARK: - Exhaustion
 
     private func evaluateExhaustion(
-        _ currentCycles: [String: (percent: Double, provider: ProviderID, window: UsageWindow)]
+        _ currentCycles: [String: (percent: Double, title: String, window: UsageWindow)]
     ) {
         var fired = Set(defaults.stringArray(forKey: firedKey) ?? [])
 
@@ -71,7 +76,7 @@ final class UsageNotifier {
             fired.insert(key)
             deliver(
                 id: "exhaust.\(key)",
-                body: "\(entry.provider.title) · \(entry.window.title) at \(Format.percent(entry.percent))"
+                body: "\(entry.title) · \(entry.window.title) at \(Format.percent(entry.percent))"
             )
         }
 
@@ -87,6 +92,7 @@ final class UsageNotifier {
 
     private func collectResets(
         provider: ProviderID,
+        title: String,
         windows: [UsageWindow],
         into desired: inout [String: (date: Date, body: String)]
     ) {
@@ -101,14 +107,14 @@ final class UsageNotifier {
         if withReset.count > 1,
            let first = withReset.first?.1,
            withReset.allSatisfy({ abs($0.1.timeIntervalSince(first)) < 60 }) {
-            desired["reset.\(provider.rawValue).shared"] = (first, "\(provider.title) limits reset")
+            desired["reset.\(provider.rawValue).shared"] = (first, "\(title) limits reset")
             return
         }
 
         for (window, date) in withReset {
             desired["reset.\(provider.rawValue).\(window.id)"] = (
                 date,
-                "\(provider.title) · \(window.title) reset"
+                "\(title) · \(window.title) reset"
             )
         }
     }

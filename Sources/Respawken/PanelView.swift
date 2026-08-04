@@ -3,6 +3,7 @@ import SwiftUI
 
 struct PanelView: View {
     @ObservedObject var store: UsageStore
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -10,8 +11,13 @@ struct PanelView: View {
             Divider()
 
             VStack(alignment: .leading, spacing: 14) {
-                ForEach(ProviderID.allCases) { provider in
-                    ProviderRow(provider: provider, result: store.results[provider], now: store.tick)
+                ForEach(store.providerOrder) { provider in
+                    ProviderRow(
+                        title: store.title(for: provider),
+                        accent: provider.accent,
+                        result: store.results[provider],
+                        now: store.tick
+                    )
                 }
             }
             .padding(.horizontal, 14)
@@ -28,6 +34,14 @@ struct PanelView: View {
             Text("respawken")
                 .font(.system(size: 13, weight: .semibold, design: .rounded))
             Spacer()
+            Button {
+                openWindow(id: "settings")
+                NSApp.activate(ignoringOtherApps: true)
+            } label: {
+                Image(systemName: "gearshape").font(.system(size: 11, weight: .medium))
+            }
+            .buttonStyle(.plain)
+            .help("Settings")
             if store.isRefreshing {
                 ProgressView().controlSize(.small).scaleEffect(0.7).frame(width: 14, height: 14)
             } else {
@@ -68,15 +82,16 @@ struct PanelView: View {
 }
 
 private struct ProviderRow: View {
-    let provider: ProviderID
+    let title: String
+    let accent: Color
     let result: ProviderResult?
     let now: Date
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
-                Circle().fill(provider.accent).frame(width: 7, height: 7)
-                Text(provider.title)
+                Circle().fill(accent).frame(width: 7, height: 7)
+                Text(title)
                     .font(.system(size: 12, weight: .semibold))
                 Spacer()
                 if let plan = result?.snapshot?.plan {

@@ -11,7 +11,7 @@ import Foundation
 /// stays in sync.
 struct ClaudeProvider: UsageProvider {
     let account: ClaudeAccount
-    var id: ProviderID { account.id }
+    var id: ProviderID { account.providerID }
 
     /// The usage endpoint needs `user:profile`; inference-only tokens are rejected.
     private static let requiredScope = "user:profile"
@@ -247,7 +247,7 @@ struct ClaudeProvider: UsageProvider {
     }
 
     private var configDirectory: URL {
-        if let configDir = account.configDir {
+        if let configDir = account.resolvedConfigDir {
             return URL(fileURLWithPath: configDir, isDirectory: true)
         }
         return FileManager.default.homeDirectoryForCurrentUser
@@ -255,7 +255,7 @@ struct ClaudeProvider: UsageProvider {
     }
 
     private var keychainService: String {
-        Self.keychainService(forConfigDir: account.configDir)
+        Self.keychainService(forConfigDir: account.resolvedConfigDir)
     }
 
     private func loadCredentials() async -> Credentials? {

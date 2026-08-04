@@ -16,5 +16,11 @@ struct RespawkenApp: App {
             Image(nsImage: MenuBarIcon.render(store: store))
         }
         .menuBarExtraStyle(.window)
+
+        Window("Settings", id: "settings") {
+            SettingsView(store: store)
+        }
+        .windowResizability(.contentSize)
+        .defaultSize(width: 560, height: 420)
     }
 }

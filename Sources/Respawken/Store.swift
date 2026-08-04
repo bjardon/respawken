@@ -8,26 +8,40 @@ final class UsageStore: ObservableObject {
     @Published private(set) var lastRefresh: Date?
     /// Drives countdown labels without re-fetching.
     @Published private(set) var tick = Date()
+    @Published private(set) var claudeAccounts: [ClaudeAccount]
 
-    private let providers: [any UsageProvider]
+    private var providers: [any UsageProvider]
     private let notifier = UsageNotifier.shared
     private var timer: Task<Void, Never>?
 
     static let refreshInterval: TimeInterval = 120
 
     init(seed: [ProviderID: ProviderResult] = [:], providers: [any UsageProvider]? = nil) {
+        let accounts = AppSettings.load().claudeAccounts
+        claudeAccounts = accounts
         results = seed
         lastRefresh = seed.isEmpty ? nil : Date()
-        self.providers = providers ?? Self.defaultProviders()
+        self.providers = providers ?? Self.providers(for: accounts)
     }
 
     nonisolated static func defaultProviders() -> [any UsageProvider] {
-        ClaudeAccount.configured.map { ClaudeProvider(account: $0) }
-            + [CodexProvider(), CursorProvider()]
+        providers(for: AppSettings.load().claudeAccounts)
+    }
+
+    nonisolated static func providers(for accounts: [ClaudeAccount]) -> [any UsageProvider] {
+        accounts.map { ClaudeProvider(account: $0) } + [CodexProvider(), CursorProvider()]
+    }
+
+    var providerOrder: [ProviderID] {
+        claudeAccounts.map(\.providerID) + [.codex, .cursor]
     }
 
     var ordered: [ProviderResult] {
-        ProviderID.allCases.compactMap { results[$0] }
+        providerOrder.compactMap { results[$0] }
+    }
+
+    func title(for provider: ProviderID) -> String {
+        provider.title(using: claudeAccounts)
     }
 
     /// The number worth putting in the menu bar: the closest limit to being hit.
@@ -35,6 +49,23 @@ final class UsageStore: ObservableObject {
         ordered
             .compactMap { result in result.peakPercent.map { (result.provider, $0) } }
             .max { $0.1 < $1.1 }
+    }
+
+    func updateClaudeAccounts(_ accounts: [ClaudeAccount]) {
+        guard accounts != claudeAccounts else { return }
+        let previous = claudeAccounts
+        claudeAccounts = accounts
+        AppSettings(claudeAccounts: accounts).save()
+
+        // Relabeling alone shouldn't re-hit the APIs — only add/remove/path changes.
+        let previousStructure = previous.map { "\($0.id)\0\($0.resolvedConfigDir ?? "")" }
+        let nextStructure = accounts.map { "\($0.id)\0\($0.resolvedConfigDir ?? "")" }
+        guard previousStructure != nextStructure else { return }
+
+        providers = Self.providers(for: accounts)
+        let valid = Set(providerOrder)
+        results = results.filter { valid.contains($0.key) }
+        Task { await refresh() }
     }
 
     func start() {
@@ -62,6 +93,9 @@ final class UsageStore: ObservableObject {
             tick = Date()
         }
 
+        let accounts = claudeAccounts
+        let order = providerOrder
+
         // Providers are independent; one hanging must not delay the others.
         await withTaskGroup(of: ProviderResult.self) { group in
             for provider in providers {
@@ -79,6 +113,6 @@ final class UsageStore: ObservableObject {
             }
         }
 
-        notifier.evaluate(results: results)
+        notifier.evaluate(results: results, order: order, accounts: accounts)
     }
 }
