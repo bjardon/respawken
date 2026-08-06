@@ -107,10 +107,7 @@ struct ClaudeProvider: UsageProvider {
     }
 
     private func mapUsageError(_ error: Error) -> ProviderOutcome {
-        if let failure = error as? HTTP.Failure {
-            return .failed(failure.localizedDescription, transient: failure.isTransient)
-        }
-        return .failed(error.localizedDescription)
+        .failed(error.localizedDescription, transient: HTTP.isTransient(error))
     }
 
     private func fetchUsage(token: String) async throws -> [String: Any] {
@@ -168,10 +165,8 @@ struct ClaudeProvider: UsageProvider {
         } catch let failure as HTTP.Failure where failure.status == 400 || failure.status == 401 {
             // invalid_grant / revoked refresh token — only a fresh login helps.
             return .signedOut("Session expired — run `claude auth login`")
-        } catch let failure as HTTP.Failure where failure.isTransient {
-            return .failed(failure.localizedDescription, transient: true)
         } catch {
-            return .failed(error.localizedDescription)
+            return .failed(error.localizedDescription, transient: HTTP.isTransient(error))
         }
     }
 

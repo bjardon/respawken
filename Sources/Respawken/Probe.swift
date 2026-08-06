@@ -57,7 +57,7 @@ enum Probe {
         // Rendering has to happen on the main thread, so gather data on a background executor
         // first and only then build the view — awaiting a main-actor task here would deadlock.
         let accounts = AppSettings.load().claudeAccounts
-        let order = accounts.map(\.providerID) + [.codex, .cursor]
+        let order = accounts.map(\.providerID) + [.codex, .cursor, .notion]
         let results = fetchAllBlocking()
 
         MainActor.assumeIsolated {

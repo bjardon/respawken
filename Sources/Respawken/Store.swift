@@ -29,11 +29,11 @@ final class UsageStore: ObservableObject {
     }
 
     nonisolated static func providers(for accounts: [ClaudeAccount]) -> [any UsageProvider] {
-        accounts.map { ClaudeProvider(account: $0) } + [CodexProvider(), CursorProvider()]
+        accounts.map { ClaudeProvider(account: $0) } + [CodexProvider(), CursorProvider(), NotionProvider()]
     }
 
     var providerOrder: [ProviderID] {
-        claudeAccounts.map(\.providerID) + [.codex, .cursor]
+        claudeAccounts.map(\.providerID) + [.codex, .cursor, .notion]
     }
 
     var ordered: [ProviderResult] {
@@ -104,8 +104,8 @@ final class UsageStore: ObservableObject {
                 }
             }
             for await result in group {
-                // Keep the last good reading across transient blips (429, gateway errors)
-                // so overnight rate limits don't blank a provider that was fine.
+                // Keep the last good reading across transient blips (429, gateway errors,
+                // dropped sockets) so a flaky poll doesn't blank a provider that was fine.
                 if result.isTransientFailure, case .ok = results[result.provider]?.outcome {
                     continue
                 }

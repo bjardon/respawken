@@ -15,6 +15,7 @@ struct ProviderID: Hashable, Identifiable, Codable, Sendable, RawRepresentable {
 
     static let codex = ProviderID(rawValue: "codex")
     static let cursor = ProviderID(rawValue: "cursor")
+    static let notion = ProviderID(rawValue: "notion")
 
     var accent: Color {
         switch rawValue {
@@ -22,6 +23,8 @@ struct ProviderID: Hashable, Identifiable, Codable, Sendable, RawRepresentable {
             return Color(red: 0.30, green: 0.78, blue: 0.62)
         case Self.cursor.rawValue:
             return Color(red: 0.45, green: 0.60, blue: 0.95)
+        case Self.notion.rawValue:
+            return Color(red: 0.25, green: 0.45, blue: 0.65)
         default:
             return Color(red: 0.85, green: 0.47, blue: 0.30)
         }
@@ -31,6 +34,7 @@ struct ProviderID: Hashable, Identifiable, Codable, Sendable, RawRepresentable {
         switch rawValue {
         case Self.codex.rawValue: return "Codex"
         case Self.cursor.rawValue: return "Cursor"
+        case Self.notion.rawValue: return "Notion AI"
         default:
             if let label = accounts.first(where: { $0.id == rawValue })?.label, !label.isEmpty {
                 return "Claude · \(label)"

@@ -1,9 +1,9 @@
 import AppKit
 
-/// Draws the status item as stacked meters — Claude accounts (in settings order), then Codex
-/// and Cursor, top to bottom. Fill length is utilization; colour is severity. A provider that
-/// is signed out or failing renders as an empty outline so a missing reading never looks like
-/// a healthy zero.
+/// Draws the status item as stacked meters — Claude accounts (in settings order), then Codex,
+/// Cursor, and Notion AI, top to bottom. Fill length is utilization; colour is severity. A
+/// provider that is signed out or failing renders as an empty outline so a missing reading
+/// never looks like a healthy zero.
 enum MenuBarIcon {
     private static let size = NSSize(width: 20, height: 16)
 

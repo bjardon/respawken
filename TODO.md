@@ -23,6 +23,8 @@
 - [x] **Claude accounts settings** — gear opens a Settings window; add / rename / remove
       accounts with label + config dir; persisted to Application Support; panel and
       menu bar rebuild from that list. Codex and Cursor stay single-source.
+- [x] **Notion AI** — rolling 6-hour + monthly usage allowance from Notion.app session;
+      Notion credits balance / monthly credits window via private `/api/v3` endpoints
 
 ## Known gaps
 
@@ -31,6 +33,9 @@
 - Claude's Opus/Sonnet/Cowork weekly windows are parsed but all came back `null` on a Team plan,
   so those rows are still unproven.
 - Settings has no reorder UI yet — accounts appear in list order; add/remove works.
+- Notion AI uses undocumented `app.notion.com/api/v3` endpoints authenticated with the
+  desktop session cookie; Notion can change them without notice. Multi-workspace accounts
+  currently pick the first Business/Enterprise space Notion returns.
 
 ## Not done yet
 

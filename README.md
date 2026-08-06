@@ -1,7 +1,7 @@
 # respawken
 
-A tiny macOS status bar app that shows how much Claude Code, Codex, and Cursor usage you have
-left, and when each limit resets.
+A tiny macOS status bar app that shows how much Claude Code, Codex, Cursor, and Notion AI usage
+you have left, and when each limit resets.
 
 It answers two questions at a glance:
 
@@ -12,9 +12,10 @@ Native Swift/SwiftUI, no Dock icon, ~22 MB resident, idle at 0% CPU.
 
 ![panel](docs/panel.png)
 
-The menu bar icon is stacked meters — configured Claude accounts, then Codex and Cursor, top to
-bottom. Fill is utilization, colour is severity (green / amber / red). A provider that is signed
-out or failing renders as an empty outline, so a missing reading never looks like a healthy zero.
+The menu bar icon is stacked meters — configured Claude accounts, then Codex, Cursor, and
+Notion AI, top to bottom. Fill is utilization, colour is severity (green / amber / red). A
+provider that is signed out or failing renders as an empty outline, so a missing reading never
+looks like a healthy zero.
 
 Open **Settings** from the gear on the panel to add or edit Claude accounts (label + config dir).
 Defaults match Personal (`~/.claude`) and Work (`~/.claude-oxp`). Changes persist under
@@ -38,8 +39,8 @@ Two extra modes are useful when something looks wrong:
 
 ## Where the numbers come from
 
-Everything is read on-device from credentials the three tools already store. respawken never asks
-you to log in again. The only thing it stores of its own is the Claude account list (and a small
+Everything is read on-device from credentials the tools already store. respawken never asks you to
+log in again. The only thing it stores of its own is the Claude account list (and a small
 notification bookkeeping key in UserDefaults).
 
 | Provider | Source | Notes |
@@ -47,6 +48,7 @@ notification bookkeeping key in UserDefaults).
 | **Codex** | `~/.codex/auth.json` → `chatgpt.com/backend-api/wham/usage` | Access tokens expire; respawken refreshes them via `auth.openai.com/oauth/token` and writes the rotated tokens back so Codex stays in sync. Falls back to the `rate_limits` block in the newest session log in `~/.codex/sessions` when the API is unreachable or refresh fails. |
 | **Cursor** | `state.vscdb` → `cursor.com/api/usage-summary` | Reuses the bearer token Cursor.app already holds, so no browser cookie decryption. Cursor bills monthly, so "resets" is the end of the billing cycle. |
 | **Claude Code** | Per-account: default `~/.claude` → `Claude Code-credentials`; custom `CLAUDE_CONFIG_DIR` → `Claude Code-credentials-<sha256[:8]>` (or `$dir/.credentials.json`) → `api.anthropic.com/api/oauth/usage` | Multiple logins via Settings (label + config dir). Defaults: Personal on `~/.claude`, Work on `~/.claude-oxp`. Access tokens expire after ~8 hours; respawken refreshes them via `platform.claude.com/v1/oauth/token` and writes the rotated tokens back so Claude Code stays in sync. The usage endpoint returns no account email — rows use your labels. |
+| **Notion AI** | Notion.app Cookies + Keychain `Notion Safe Storage` → `app.notion.com/api/v3/getCreditRateLimitStatus` (+ `getAIUsageEligibilityV2` for credits) | Decrypts the desktop app's `token_v2` session cookie (via `/usr/bin/security`, same prompt avoidance as Claude). Tracks the rolling 6-hour and monthly AI usage allowance on Business/Enterprise, plus Notion credits balance. These are Notion's private web APIs — not the public Connection/PAT surface — and can change without notice. |
 
 Providers are polled every 2 minutes, concurrently, with a 12-second timeout each. One provider
 being slow or signed out never blocks the others.
@@ -99,8 +101,8 @@ Sources/Respawken/
   PanelView.swift     the dropdown
   Probe.swift         --probe and --preview
   Providers/          one file per provider
-  Support/Sources.swift  Keychain, SQLite, JWT, HTTP, tolerant JSON accessors
+  Support/Sources.swift  Keychain, SQLite, JWT, HTTP, Chromium cookie decrypt, tolerant JSON accessors
 ```
 
 Prior art: [CodexBar](https://github.com/steipete/CodexBar), which supports ~29 providers. This
-tracks three and aims to stay boring.
+tracks a smaller set and aims to stay boring.

@@ -1,3 +1,4 @@
+import CommonCrypto
 import Foundation
 import SQLite3
 import Security
@@ -53,8 +54,14 @@ enum Keychain {
     /// costing ~8 s, and macOS pins the resulting "Always Allow" grant to the binary's code hash,
     /// so every rebuild prompts again — signing with a real certificate and a hash-free designated
     /// requirement does not change that.
-    static func genericPassword(service: String) -> Data? {
-        runSecurity(["find-generic-password", "-s", service, "-w"])
+    ///
+    /// Notion Safe Storage does *not* pre-authorize `security`; the first read prompts, and
+    /// "Always Allow" sticks to the Apple tool (not our binary hash), so rebuilds stay quiet.
+    static func genericPassword(service: String, account: String? = nil) -> Data? {
+        var args = ["find-generic-password", "-s", service]
+        if let account { args += ["-a", account] }
+        args.append("-w")
+        return runSecurity(args)
     }
 
     /// Overwrites an existing generic-password item via `security -U`. Used after Claude OAuth
@@ -96,6 +103,86 @@ enum Keychain {
 /// Cursor's global state database is multi-gigabyte and is written by the running
 /// editor, so it is opened read-only with `immutable=1`: no locking, no WAL recovery,
 /// no copy. A point lookup stays in the low milliseconds regardless of file size.
+/// Decrypt Chromium/Electron `v10` cookie values using a Keychain "… Safe Storage" password.
+///
+/// macOS Chromium derives AES-128-CBC from PBKDF2-HMAC-SHA1(password, "saltysalt", 1003).
+/// Recent cookie DBs also prefix the plaintext with a 32-byte SHA-256 of `host_key`.
+enum ChromiumCrypt {
+    static func decryptCookieValue(_ encrypted: Data, password: Data) -> String? {
+        guard encrypted.count > 3,
+              let prefix = String(data: encrypted.prefix(3), encoding: .utf8),
+              prefix == "v10" || prefix == "v11" else { return nil }
+        guard let key = pbkdf2(password: password) else { return nil }
+
+        let ciphertext = encrypted.dropFirst(3)
+        guard ciphertext.count % kCCBlockSizeAES128 == 0, !ciphertext.isEmpty else { return nil }
+
+        let iv = Data(repeating: UInt8(ascii: " "), count: kCCBlockSizeAES128)
+        var out = Data(count: ciphertext.count + kCCBlockSizeAES128)
+        let outCapacity = out.count
+        var outLength = 0
+
+        let status: Int32 = out.withUnsafeMutableBytes { outBytes in
+            ciphertext.withUnsafeBytes { cipherBytes in
+                key.withUnsafeBytes { keyBytes in
+                    iv.withUnsafeBytes { ivBytes in
+                        CCCrypt(
+                            CCOperation(kCCDecrypt),
+                            CCAlgorithm(kCCAlgorithmAES),
+                            CCOptions(kCCOptionPKCS7Padding),
+                            keyBytes.baseAddress, kCCKeySizeAES128,
+                            ivBytes.baseAddress,
+                            cipherBytes.baseAddress, ciphertext.count,
+                            outBytes.baseAddress, outCapacity,
+                            &outLength
+                        )
+                    }
+                }
+            }
+        }
+        guard status == kCCSuccess else { return nil }
+        out.count = outLength
+
+        // Chrome 130+ / Electron equivalents: 32-byte host hash before the real value.
+        if out.count > 32, !out.prefix(32).allSatisfy(\.isASCIIPrintable),
+           out.dropFirst(32).allSatisfy(\.isASCIIPrintable) {
+            out = Data(out.dropFirst(32))
+        }
+        return String(data: out, encoding: .utf8)
+    }
+
+    private static func pbkdf2(password: Data) -> Data? {
+        var derived = Data(count: kCCKeySizeAES128)
+        let salt = Array("saltysalt".utf8)
+        let passwordBytes = [UInt8](password)
+        let status = derived.withUnsafeMutableBytes { derivedBytes -> Int32 in
+            guard let derivedPtr = derivedBytes.bindMemory(to: UInt8.self).baseAddress else {
+                return Int32(kCCParamError)
+            }
+            return passwordBytes.withUnsafeBufferPointer { passBuf in
+                salt.withUnsafeBufferPointer { saltBuf in
+                    CCKeyDerivationPBKDF(
+                        CCPBKDFAlgorithm(kCCPBKDF2),
+                        passBuf.baseAddress.map { UnsafeRawPointer($0).assumingMemoryBound(to: Int8.self) },
+                        passwordBytes.count,
+                        saltBuf.baseAddress,
+                        salt.count,
+                        CCPseudoRandomAlgorithm(kCCPRFHmacAlgSHA1),
+                        1003,
+                        derivedPtr,
+                        kCCKeySizeAES128
+                    )
+                }
+            }
+        }
+        return status == kCCSuccess ? derived : nil
+    }
+}
+
+private extension UInt8 {
+    var isASCIIPrintable: Bool { self >= 32 && self < 127 }
+}
+
 enum StateDB {
     static func value(forKey key: String, at path: String) -> String? {
         let encoded = path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? path
@@ -200,11 +287,29 @@ enum HTTP {
         var isTransient: Bool { status == 429 || status == 502 || status == 503 || status == 504 }
     }
 
+    /// Transport blips (dropped keep-alive, brief offline) should keep the last good reading.
+    static func isTransient(_ error: Error) -> Bool {
+        if let failure = error as? Failure { return failure.isTransient }
+        let urlError = (error as? URLError) ?? (error as NSError).asURLError
+        guard let urlError else { return false }
+        switch urlError.code {
+        case .timedOut, .networkConnectionLost, .notConnectedToInternet,
+             .cannotConnectToHost, .dnsLookupFailed, .resourceUnavailable,
+             .internationalRoamingOff, .callIsActive, .dataNotAllowed:
+            return true
+        default:
+            return false
+        }
+    }
+
     static let session: URLSession = {
         let config = URLSessionConfiguration.ephemeral
         config.timeoutIntervalForRequest = 12
         config.timeoutIntervalForResource = 20
         config.waitsForConnectivity = false
+        // Notion (and others) sometimes close idle HTTP/2 sockets; forcing a fresh
+        // TCP connection avoids a common "network connection was lost" on reuse.
+        config.httpShouldUsePipelining = false
         return URLSession(configuration: config)
     }()
 
@@ -228,7 +333,25 @@ enum HTTP {
         req.httpMethod = method
         for (k, v) in headers { req.setValue(v, forHTTPHeaderField: k) }
         req.httpBody = body
+        // Prefer a new connection over reusing one the peer already closed.
+        req.setValue("close", forHTTPHeaderField: "Connection")
 
+        do {
+            return try await performJSON(req)
+        } catch {
+            // One retry on dropped sockets only — not on HTTP 429/5xx (those stay single-shot).
+            guard isTransportBlip(error) else { throw error }
+            try await Task.sleep(nanoseconds: 150_000_000)
+            return try await performJSON(req)
+        }
+    }
+
+    private static func isTransportBlip(_ error: Error) -> Bool {
+        if error is Failure { return false }
+        return isTransient(error)
+    }
+
+    private static func performJSON(_ req: URLRequest) async throws -> [String: Any] {
         let (data, response) = try await session.data(for: req)
         let status = (response as? HTTPURLResponse)?.statusCode ?? -1
         guard (200..<300).contains(status) else {
@@ -238,6 +361,14 @@ enum HTTP {
             throw Failure(status: status, body: "unexpected payload")
         }
         return obj
+    }
+}
+
+private extension NSError {
+    var asURLError: URLError? {
+        if let urlError = self as? URLError { return urlError }
+        guard domain == NSURLErrorDomain else { return nil }
+        return URLError(URLError.Code(rawValue: code))
     }
 }
 

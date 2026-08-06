@@ -85,10 +85,7 @@ struct CodexProvider: UsageProvider {
             local.note = "API unreachable — showing last session"
             return .ok(local)
         }
-        if let failure = error as? HTTP.Failure {
-            return .failed(failure.localizedDescription, transient: failure.isTransient)
-        }
-        return .failed(error.localizedDescription)
+        return .failed(error.localizedDescription, transient: HTTP.isTransient(error))
     }
 
     // MARK: - OAuth refresh
@@ -140,10 +137,8 @@ struct CodexProvider: UsageProvider {
         } catch let failure as HTTP.Failure where failure.status == 400 || failure.status == 401 {
             // invalid_grant / revoked refresh token — only a fresh login helps.
             return .signedOut("Token expired — run `codex login`")
-        } catch let failure as HTTP.Failure where failure.isTransient {
-            return .failed(failure.localizedDescription, transient: true)
         } catch {
-            return .failed(error.localizedDescription)
+            return .failed(error.localizedDescription, transient: HTTP.isTransient(error))
         }
     }
 
