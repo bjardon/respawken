@@ -17,7 +17,9 @@ struct ProviderID: Hashable, Identifiable, Codable, Sendable, RawRepresentable {
     static let cursor = ProviderID(rawValue: "cursor")
     static let notion = ProviderID(rawValue: "notion")
 
-    var accent: Color {
+    /// Built-in accent when the user hasn't set a custom colour.
+    /// Claude accounts cycle a small palette so Personal / Work stay distinct.
+    func defaultAccent(accounts: [ClaudeAccount]) -> Color {
         switch rawValue {
         case Self.codex.rawValue:
             return Color(red: 0.30, green: 0.78, blue: 0.62)
@@ -26,7 +28,15 @@ struct ProviderID: Hashable, Identifiable, Codable, Sendable, RawRepresentable {
         case Self.notion.rawValue:
             return Color(red: 0.25, green: 0.45, blue: 0.65)
         default:
-            return Color(red: 0.85, green: 0.47, blue: 0.30)
+            let palette: [Color] = [
+                Color(red: 0.85, green: 0.47, blue: 0.30), // orange
+                Color(red: 0.62, green: 0.48, blue: 0.90), // lavender
+                Color(red: 0.90, green: 0.40, blue: 0.55), // rose
+                Color(red: 0.95, green: 0.70, blue: 0.30), // amber
+                Color(red: 0.40, green: 0.70, blue: 0.85), // sky
+            ]
+            let index = accounts.firstIndex(where: { $0.id == rawValue }) ?? 0
+            return palette[index % palette.count]
         }
     }
 
@@ -125,6 +135,17 @@ struct ProviderResult {
     /// Highest utilization across windows, used for the menu bar summary.
     var peakPercent: Double? {
         snapshot?.windows.map(\.clamped).max()
+    }
+
+    /// Utilization for the window that drives the menu bar meter.
+    /// Prefers `windowID`, then falls back through the remaining windows so a missing
+    /// optional limit (e.g. unused Opus weekly) doesn't blank a healthy provider.
+    func iconPercent(windowID: String) -> Double? {
+        guard let windows = snapshot?.windows, !windows.isEmpty else { return nil }
+        if let match = windows.first(where: { $0.id == windowID }) {
+            return match.clamped
+        }
+        return windows.first?.clamped
     }
 }
 

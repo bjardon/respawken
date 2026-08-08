@@ -14,7 +14,7 @@ struct PanelView: View {
                 ForEach(store.providerOrder) { provider in
                     ProviderRow(
                         title: store.title(for: provider),
-                        accent: provider.accent,
+                        accent: store.accent(for: provider),
                         result: store.results[provider],
                         now: store.tick
                     )

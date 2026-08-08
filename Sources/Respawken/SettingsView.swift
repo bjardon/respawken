@@ -36,10 +36,28 @@ struct SettingsView: View {
                 } footer: {
                     Text("Each account needs a label and the Claude config directory (`CLAUDE_CONFIG_DIR`). Use `~/.claude` for the default login.")
                 }
+
+                Section {
+                    ForEach(store.providerOrder) { provider in
+                        IconProviderEditor(
+                            title: store.title(for: provider),
+                            accent: store.accent(for: provider),
+                            prefs: store.settings.prefs(for: provider),
+                            windowOptions: store.iconWindowOptions(for: provider),
+                            defaultWindowID: IconWindowDefaults.windowID(for: provider)
+                        ) { prefs in
+                            store.updateIconPrefs(prefs, for: provider)
+                        }
+                    }
+                } header: {
+                    Text("Menu bar icon")
+                } footer: {
+                    Text("Panel order is icon order. Up to \(UsageStore.maxIconProviders) shown providers appear on the icon; fewer collapse to a single column.")
+                }
             }
             .formStyle(.grouped)
         }
-        .frame(minWidth: 520, minHeight: 360)
+        .frame(minWidth: 560, minHeight: 520)
         .onAppear {
             accounts = store.claudeAccounts
             NSApp.activate(ignoringOtherApps: true)
@@ -100,5 +118,78 @@ private struct AccountEditor: View {
             return "~" + path.dropFirst(home.count)
         }
         return path
+    }
+}
+
+private struct IconProviderEditor: View {
+    let title: String
+    let accent: Color
+    let prefs: ProviderIconPrefs
+    let windowOptions: [(id: String, title: String)]
+    let defaultWindowID: String
+    var onChange: (ProviderIconPrefs) -> Void
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            ColorPicker("", selection: colorBinding, supportsOpacity: false)
+                .labelsHidden()
+                .frame(width: 28)
+                .help("Provider colour")
+
+            Text(title)
+                .frame(minWidth: 110, alignment: .leading)
+
+            Picker("Limit", selection: windowBinding) {
+                ForEach(windowOptions, id: \.id) { option in
+                    Text(option.title).tag(Optional.some(option.id))
+                }
+            }
+            .labelsHidden()
+            .frame(maxWidth: .infinity)
+
+            Toggle("Show", isOn: showBinding)
+                .toggleStyle(.switch)
+                .labelsHidden()
+                .help("Show on menu bar icon")
+        }
+        .padding(.vertical, 2)
+    }
+
+    private var colorBinding: Binding<Color> {
+        Binding(
+            get: { accent },
+            set: { newValue in
+                var next = prefs
+                next.color = RGBColor(newValue)
+                onChange(next)
+            }
+        )
+    }
+
+    private var showBinding: Binding<Bool> {
+        Binding(
+            get: { prefs.showOnIcon },
+            set: { value in
+                var next = prefs
+                next.showOnIcon = value
+                onChange(next)
+            }
+        )
+    }
+
+    private var windowBinding: Binding<String?> {
+        Binding(
+            get: {
+                let id = prefs.windowID ?? defaultWindowID
+                if windowOptions.contains(where: { $0.id == id }) { return id }
+                return windowOptions.first?.id
+            },
+            set: { value in
+                var next = prefs
+                // Persist nil when the user picks the family default so defaults can evolve.
+                next.windowID = (value == defaultWindowID) ? nil : value
+                onChange(next)
+            }
+        )
     }
 }

@@ -1,31 +1,82 @@
 import AppKit
 
-/// Draws the status item as stacked meters — Claude accounts (in settings order), then Codex,
-/// Cursor, and Notion AI, top to bottom. Fill length is utilization; colour is severity. A
-/// provider that is signed out or failing renders as an empty outline so a missing reading
-/// never looks like a healthy zero.
+/// Draws the status item as a compact grid of provider meters.
+/// One column when ≤3 providers are visible; two columns (left filled first) up to 6.
+/// Each row is a colour-coded identity dot plus a severity-coloured utilization bar.
 enum MenuBarIcon {
-    private static let size = NSSize(width: 20, height: 16)
+    private static let maxProviders = 6
+    private static let height: CGFloat = 16
+    private static let singleColumnWidth: CGFloat = 22
+    private static let dualColumnWidth: CGFloat = 42
+
+    struct Entry {
+        let provider: ProviderID
+        let percent: Double?
+        let accent: NSColor
+    }
 
     @MainActor
     static func render(store: UsageStore) -> NSImage {
-        render(results: store.results, order: store.providerOrder)
+        let entries = store.iconOrder.map { provider in
+            Entry(
+                provider: provider,
+                percent: store.results[provider]?.iconPercent(windowID: store.settings.iconWindowID(for: provider)),
+                accent: store.nsAccent(for: provider)
+            )
+        }
+        return render(entries: entries)
     }
 
-    static func render(results: [ProviderID: ProviderResult], order: [ProviderID]) -> NSImage {
-        let providers = order
-        let image = NSImage(size: size, flipped: false) { _ in
-            let count = max(CGFloat(providers.count), 1)
-            let barHeight: CGFloat = min(2.4, (size.height - 1) / count * 0.7)
-            let gap: CGFloat = max(0.8, (size.height - barHeight * count) / max(count + 1, 1))
-            let width = size.width
-            let total = barHeight * count + gap * max(count - 1, 0)
-            var y = (size.height - total) / 2 + total - barHeight
+    static func render(entries: [Entry]) -> NSImage {
+        let providers = Array(entries.prefix(maxProviders))
+        let columns = providers.count > 3 ? 2 : 1
+        let size = NSSize(
+            width: columns == 1 ? singleColumnWidth : dualColumnWidth,
+            height: height
+        )
 
-            for provider in providers {
-                let track = NSRect(x: 0, y: y, width: width, height: barHeight)
-                draw(track: track, percent: results[provider]?.peakPercent)
-                y -= (barHeight + gap)
+        let image = NSImage(size: size, flipped: false) { _ in
+            guard !providers.isEmpty else { return true }
+
+            // Left column fills first (up to 3), then the right — so 4 providers is 3+1, not 2+2.
+            let leftCount = columns == 1 ? providers.count : min(3, providers.count)
+            let rightCount = columns == 1 ? 0 : max(0, providers.count - 3)
+            let rowCount = max(max(leftCount, rightCount), 1)
+            let barHeight: CGFloat = min(3.2, (size.height - 1) / CGFloat(rowCount) * 0.72)
+            let gap: CGFloat = max(0.7, (size.height - barHeight * CGFloat(rowCount)) / CGFloat(rowCount + 1))
+            let totalHeight = barHeight * CGFloat(rowCount) + gap * CGFloat(max(rowCount - 1, 0))
+            let top = (size.height - totalHeight) / 2 + totalHeight - barHeight
+
+            let columnGap: CGFloat = 3.5
+            let columnWidth = columns == 1
+                ? size.width
+                : (size.width - columnGap) / 2
+            let dotSize = barHeight
+            let dotGap: CGFloat = 1.6
+            let barWidth = max(columnWidth - dotSize - dotGap, 4)
+
+            for (index, entry) in providers.enumerated() {
+                let column = columns == 1 ? 0 : (index < 3 ? 0 : 1)
+                let row = columns == 1 ? index : (index < 3 ? index : index - 3)
+                let x = CGFloat(column) * (columnWidth + columnGap)
+                let y = top - CGFloat(row) * (barHeight + gap)
+
+                let dotRect = NSRect(
+                    x: x,
+                    y: y + (barHeight - dotSize) / 2,
+                    width: dotSize,
+                    height: dotSize
+                )
+                entry.accent.setFill()
+                NSBezierPath(ovalIn: dotRect).fill()
+
+                let track = NSRect(
+                    x: x + dotSize + dotGap,
+                    y: y,
+                    width: barWidth,
+                    height: barHeight
+                )
+                draw(track: track, percent: entry.percent)
             }
             return true
         }

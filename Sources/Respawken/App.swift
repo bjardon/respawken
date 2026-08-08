@@ -13,6 +13,10 @@ struct RespawkenApp: App {
             PanelView(store: store)
                 .task { store.start() }
         } label: {
+            // Touch published fields so the label redraws when usage or icon prefs change.
+            let _ = store.settings
+            let _ = store.results
+            let _ = store.lastRefresh
             Image(nsImage: MenuBarIcon.render(store: store))
         }
         .menuBarExtraStyle(.window)
@@ -21,6 +25,6 @@ struct RespawkenApp: App {
             SettingsView(store: store)
         }
         .windowResizability(.contentSize)
-        .defaultSize(width: 560, height: 420)
+        .defaultSize(width: 560, height: 560)
     }
 }

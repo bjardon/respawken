@@ -56,8 +56,6 @@ enum Probe {
 
         // Rendering has to happen on the main thread, so gather data on a background executor
         // first and only then build the view — awaiting a main-actor task here would deadlock.
-        let accounts = AppSettings.load().claudeAccounts
-        let order = accounts.map(\.providerID) + [.codex, .cursor, .notion]
         let results = fetchAllBlocking()
 
         MainActor.assumeIsolated {
@@ -66,7 +64,7 @@ enum Probe {
             let renderer = ImageRenderer(content: PanelView(store: store).background(.background))
             renderer.scale = 2
             write(renderer.nsImage, to: output, label: "panel")
-            write(MenuBarIcon.render(results: results, order: order),
+            write(MenuBarIcon.render(store: store),
                   to: output.replacingOccurrences(of: ".png", with: "-icon.png"), label: "icon")
         }
         exit(0)

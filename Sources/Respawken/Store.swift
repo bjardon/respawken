@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import SwiftUI
 
@@ -8,20 +9,23 @@ final class UsageStore: ObservableObject {
     @Published private(set) var lastRefresh: Date?
     /// Drives countdown labels without re-fetching.
     @Published private(set) var tick = Date()
-    @Published private(set) var claudeAccounts: [ClaudeAccount]
+    @Published private(set) var settings: AppSettings
 
     private var providers: [any UsageProvider]
     private let notifier = UsageNotifier.shared
     private var timer: Task<Void, Never>?
 
     static let refreshInterval: TimeInterval = 120
+    static let maxIconProviders = 6
+
+    var claudeAccounts: [ClaudeAccount] { settings.claudeAccounts }
 
     init(seed: [ProviderID: ProviderResult] = [:], providers: [any UsageProvider]? = nil) {
-        let accounts = AppSettings.load().claudeAccounts
-        claudeAccounts = accounts
+        let loaded = AppSettings.load()
+        settings = loaded
         results = seed
         lastRefresh = seed.isEmpty ? nil : Date()
-        self.providers = providers ?? Self.providers(for: accounts)
+        self.providers = providers ?? Self.providers(for: loaded.claudeAccounts)
     }
 
     nonisolated static func defaultProviders() -> [any UsageProvider] {
@@ -36,6 +40,11 @@ final class UsageStore: ObservableObject {
         claudeAccounts.map(\.providerID) + [.codex, .cursor, .notion]
     }
 
+    /// Providers drawn on the menu bar icon, in panel order, capped at six.
+    var iconOrder: [ProviderID] {
+        Array(providerOrder.filter { settings.showOnIcon($0) }.prefix(Self.maxIconProviders))
+    }
+
     var ordered: [ProviderResult] {
         providerOrder.compactMap { results[$0] }
     }
@@ -44,18 +53,48 @@ final class UsageStore: ObservableObject {
         provider.title(using: claudeAccounts)
     }
 
+    func accent(for provider: ProviderID) -> Color {
+        if let custom = settings.prefs(for: provider).color {
+            return custom.color
+        }
+        return provider.defaultAccent(accounts: claudeAccounts)
+    }
+
+    func nsAccent(for provider: ProviderID) -> NSColor {
+        if let custom = settings.prefs(for: provider).color {
+            return custom.nsColor
+        }
+        return NSColor(provider.defaultAccent(accounts: claudeAccounts))
+    }
+
+    /// Window choices for the icon picker: live titles when available, else static defaults.
+    func iconWindowOptions(for provider: ProviderID) -> [(id: String, title: String)] {
+        if let windows = results[provider]?.snapshot?.windows, !windows.isEmpty {
+            return windows.map { ($0.id, $0.title) }
+        }
+        return IconWindowDefaults.options(for: provider)
+    }
+
     /// The number worth putting in the menu bar: the closest limit to being hit.
     var peak: (provider: ProviderID, percent: Double)? {
-        ordered
-            .compactMap { result in result.peakPercent.map { (result.provider, $0) } }
+        iconOrder
+            .compactMap { provider in
+                let windowID = settings.iconWindowID(for: provider)
+                return results[provider]?.iconPercent(windowID: windowID).map { (provider, $0) }
+            }
             .max { $0.1 < $1.1 }
     }
 
     func updateClaudeAccounts(_ accounts: [ClaudeAccount]) {
         guard accounts != claudeAccounts else { return }
         let previous = claudeAccounts
-        claudeAccounts = accounts
-        AppSettings(claudeAccounts: accounts).save()
+        var next = settings
+        next.claudeAccounts = accounts
+        // Drop prefs for removed Claude accounts; leave hardcoded providers alone.
+        let validIDs = Set(accounts.map(\.id) + [ProviderID.codex.rawValue, ProviderID.cursor.rawValue, ProviderID.notion.rawValue])
+        next.providerIconPrefs = next.providerIconPrefs.filter { validIDs.contains($0.key) }
+        settings = next
+        settings.save()
 
         // Relabeling alone shouldn't re-hit the APIs — only add/remove/path changes.
         let previousStructure = previous.map { "\($0.id)\0\($0.resolvedConfigDir ?? "")" }
@@ -66,6 +105,15 @@ final class UsageStore: ObservableObject {
         let valid = Set(providerOrder)
         results = results.filter { valid.contains($0.key) }
         Task { await refresh() }
+    }
+
+    func updateIconPrefs(_ prefs: ProviderIconPrefs, for provider: ProviderID) {
+        var next = settings
+        let current = next.prefs(for: provider)
+        guard prefs != current else { return }
+        next.setPrefs(prefs, for: provider)
+        settings = next
+        settings.save()
     }
 
     func start() {
