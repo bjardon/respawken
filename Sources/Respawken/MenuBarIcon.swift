@@ -87,12 +87,15 @@ enum MenuBarIcon {
     private static func draw(track: NSRect, percent: Double?) {
         let radius = track.height / 2
 
-        NSColor.tertiaryLabelColor.withAlphaComponent(0.45).setFill()
+        // Solid light track so empty meters stay readable on a dark menu bar
+        // (same idea as Stats' white capsule beside us).
+        NSColor.white.withAlphaComponent(0.92).setFill()
         NSBezierPath(roundedRect: track, xRadius: radius, yRadius: radius).fill()
 
         guard let percent else {
-            // No reading: outline only.
-            NSColor.tertiaryLabelColor.withAlphaComponent(0.7).setStroke()
+            // No reading: keep the white track, add a soft outline so it doesn't
+            // look like a healthy zero fill.
+            NSColor.black.withAlphaComponent(0.22).setStroke()
             let outline = NSBezierPath(roundedRect: track.insetBy(dx: 0.25, dy: 0.25),
                                        xRadius: radius, yRadius: radius)
             outline.lineWidth = 0.5
