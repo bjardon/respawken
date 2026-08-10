@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import UserNotifications
 
@@ -20,15 +21,41 @@ final class UsageNotifier {
     func requestAuthorizationIfNeeded() async {
         guard !didRequestAuth else { return }
         didRequestAuth = true
+        authorized = await refreshAuthorization(requestIfNeeded: true)
+    }
 
+    /// Immediate sample alert — useful from Settings to confirm permission + app icon.
+    @discardableResult
+    func sendTest() async -> Bool {
+        authorized = await refreshAuthorization(requestIfNeeded: true)
+        guard authorized else { return false }
+        // Ensure AppKit has the bundle icon loaded — some NC paths resolve via NSApp.
+        if NSApp.applicationIconImage == nil,
+           let url = Bundle.main.url(forResource: "AppIcon", withExtension: "icns"),
+           let icon = NSImage(contentsOf: url) {
+            NSApp.applicationIconImage = icon
+        }
+        let id = "test.\(UUID().uuidString)"
+        let content = UNMutableNotificationContent()
+        content.title = "respawken"
+        content.body = "Test notification — looking good."
+        content.sound = .default
+        // Tiny delay so `--test-notification` can keep the process alive until delivery.
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 0.3, repeats: false)
+        try? await center.add(UNNotificationRequest(identifier: id, content: content, trigger: trigger))
+        return true
+    }
+
+    private func refreshAuthorization(requestIfNeeded: Bool) async -> Bool {
         let settings = await center.notificationSettings()
         switch settings.authorizationStatus {
         case .authorized, .provisional:
-            authorized = true
-        case .notDetermined:
-            authorized = (try? await center.requestAuthorization(options: [.alert, .sound])) ?? false
+            return true
+        case .notDetermined where requestIfNeeded:
+            didRequestAuth = true
+            return (try? await center.requestAuthorization(options: [.alert, .sound])) ?? false
         default:
-            authorized = false
+            return false
         }
     }
 

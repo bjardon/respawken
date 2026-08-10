@@ -4,6 +4,7 @@ import SwiftUI
 struct SettingsView: View {
     @ObservedObject var store: UsageStore
     @State private var accounts: [ClaudeAccount] = []
+    @State private var testNotificationNote: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -53,6 +54,26 @@ struct SettingsView: View {
                     Text("Menu bar icon")
                 } footer: {
                     Text("Panel order is icon order. Up to \(UsageStore.maxIconProviders) shown providers appear on the icon; fewer collapse to a single column.")
+                }
+
+                Section {
+                    Button("Send Test Notification") {
+                        Task {
+                            let ok = await UsageNotifier.shared.sendTest()
+                            testNotificationNote = ok
+                                ? "Sent — check Notification Center."
+                                : "Notifications are off for Respawken. Enable them in System Settings → Notifications."
+                        }
+                    }
+                    if let testNotificationNote {
+                        Text(testNotificationNote)
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                    }
+                } header: {
+                    Text("Notifications")
+                } footer: {
+                    Text("Posts a sample alert so you can confirm permission and the app icon.")
                 }
             }
             .formStyle(.grouped)

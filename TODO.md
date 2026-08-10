@@ -25,6 +25,11 @@
       menu bar rebuild from that list. Codex and Cursor stay single-source.
 - [x] **Notion AI** — rolling 6-hour + monthly usage allowance from Notion.app session;
       Notion credits balance / monthly credits window via private `/api/v3` endpoints
+- [x] **App icon** — cooldown-ring + token core; `Resources/AppIcon.icon` (Icon Composer
+      stack for macOS 26) + legacy `Assets.xcassets`; `build.sh` compiles `Assets.car` via
+      `actool`, sets `CFBundleIconName`, and ships a full `.icns`. Bundle id bumped to
+      `com.bjardon.respawken.app` so NC drops the blank icon cached from pre-icon builds.
+      Settings → Send Test Notification (and `--test-notification`) to verify the banner icon.
 
 ## Known gaps
 

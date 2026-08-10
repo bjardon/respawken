@@ -7,6 +7,7 @@ import SwiftUI
 enum Probe {
     static func runIfRequested() {
         renderPreviewIfRequested()
+        sendTestNotificationIfRequested()
         guard CommandLine.arguments.contains("--probe") else { return }
 
         let accounts = AppSettings.load().claudeAccounts
@@ -43,6 +44,21 @@ enum Probe {
 
         done.wait()
         exit(0)
+    }
+
+    /// `Respawken --test-notification` posts one sample Notification Center alert and exits.
+    private static func sendTestNotificationIfRequested() {
+        guard CommandLine.arguments.contains("--test-notification") else { return }
+        _ = NSApplication.shared
+        // Can't semaphore-wait on the main thread here — `App.init` is MainActor and
+        // `UsageNotifier` needs it, so that would deadlock. Pump the run loop instead.
+        Task { @MainActor in
+            let ok = await UsageNotifier.shared.sendTest()
+            print(ok ? "posted test notification" : "notifications not authorized")
+            try? await Task.sleep(for: .milliseconds(2500))
+            exit(ok ? 0 : 1)
+        }
+        RunLoop.main.run()
     }
 
     /// `Respawken --preview [path]` renders the panel and the menu bar icon to PNGs with live

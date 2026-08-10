@@ -6,6 +6,12 @@ struct RespawkenApp: App {
 
     init() {
         Probe.runIfRequested()
+        // Menu-bar (LSUIElement) apps don't always publish their icon to AppKit early;
+        // Notification Center is happier when NSApp has it explicitly.
+        if let url = Bundle.main.url(forResource: "AppIcon", withExtension: "icns"),
+           let icon = NSImage(contentsOf: url) {
+            NSApplication.shared.applicationIconImage = icon
+        }
     }
 
     var body: some Scene {

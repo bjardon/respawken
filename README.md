@@ -1,5 +1,9 @@
 # respawken
 
+<p align="center">
+  <img src="docs/app-icon.png" alt="Respawken" width="168" />
+</p>
+
 A tiny macOS status bar app that shows how much Claude Code, Codex, Cursor, and Notion AI usage
 you have left, and when each limit resets.
 
