@@ -9,6 +9,13 @@ final class UsageNotifier {
 
     static let exhaustionThreshold = 98.0
 
+    private enum Copy {
+        static let exhaustionTitle = "🔥 Running on fumes"
+        static let resetTitle = "✨ Fresh limits"
+        static let testTitle = "👋 Still here"
+        static let testBody = "Test notification — looking good."
+    }
+
     private let center = UNUserNotificationCenter.current()
     private let defaults = UserDefaults.standard
     private let firedKey = "respawken.notifiedExhaustionCycles"
@@ -37,8 +44,8 @@ final class UsageNotifier {
         }
         let id = "test.\(UUID().uuidString)"
         let content = UNMutableNotificationContent()
-        content.title = "respawken"
-        content.body = "Test notification — looking good."
+        content.title = Copy.testTitle
+        content.body = Copy.testBody
         content.sound = .default
         // Tiny delay so `--test-notification` can keep the process alive until delivery.
         let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 0.3, repeats: false)
@@ -66,19 +73,19 @@ final class UsageNotifier {
     ) {
         guard authorized else { return }
 
-        var currentCycles: [String: (percent: Double, title: String, window: UsageWindow)] = [:]
-        var desiredResets: [String: (date: Date, body: String)] = [:]
+        var currentCycles: [String: (percent: Double, name: String, window: UsageWindow)] = [:]
+        var desiredResets: [String: (date: Date, title: String, body: String)] = [:]
 
         for provider in order {
             guard let result = results[provider], case .ok(let snapshot) = result.outcome else {
                 continue
             }
-            let title = provider.title(using: accounts)
+            let name = provider.notificationName(using: accounts)
             let active = snapshot.windows.filter(\.isActive)
             for window in active {
-                currentCycles[cycleKey(provider: provider, window: window)] = (window.clamped, title, window)
+                currentCycles[cycleKey(provider: provider, window: window)] = (window.clamped, name, window)
             }
-            collectResets(provider: provider, title: title, windows: active, into: &desiredResets)
+            collectResets(provider: provider, name: name, windows: active, into: &desiredResets)
         }
 
         evaluateExhaustion(currentCycles)
@@ -88,7 +95,7 @@ final class UsageNotifier {
     // MARK: - Exhaustion
 
     private func evaluateExhaustion(
-        _ currentCycles: [String: (percent: Double, title: String, window: UsageWindow)]
+        _ currentCycles: [String: (percent: Double, name: String, window: UsageWindow)]
     ) {
         var fired = Set(defaults.stringArray(forKey: firedKey) ?? [])
 
@@ -103,7 +110,8 @@ final class UsageNotifier {
             fired.insert(key)
             deliver(
                 id: "exhaust.\(key)",
-                body: "\(entry.title) · \(entry.window.title) at \(Format.percent(entry.percent))"
+                title: Copy.exhaustionTitle,
+                body: exhaustionBody(name: entry.name, window: entry.window, percent: entry.percent)
             )
         }
 
@@ -119,9 +127,9 @@ final class UsageNotifier {
 
     private func collectResets(
         provider: ProviderID,
-        title: String,
+        name: String,
         windows: [UsageWindow],
-        into desired: inout [String: (date: Date, body: String)]
+        into desired: inout [String: (date: Date, title: String, body: String)]
     ) {
         let now = Date()
         let withReset = windows.compactMap { window -> (UsageWindow, Date)? in
@@ -134,19 +142,24 @@ final class UsageNotifier {
         if withReset.count > 1,
            let first = withReset.first?.1,
            withReset.allSatisfy({ abs($0.1.timeIntervalSince(first)) < 60 }) {
-            desired["reset.\(provider.rawValue).shared"] = (first, "\(title) limits reset")
+            desired["reset.\(provider.rawValue).shared"] = (
+                first,
+                Copy.resetTitle,
+                "\(name)’s limits just reset"
+            )
             return
         }
 
         for (window, date) in withReset {
             desired["reset.\(provider.rawValue).\(window.id)"] = (
                 date,
-                "\(title) · \(window.title) reset"
+                Copy.resetTitle,
+                resetBody(name: name, window: window)
             )
         }
     }
 
-    private func syncResetNotifications(desired: [String: (date: Date, body: String)]) {
+    private func syncResetNotifications(desired: [String: (date: Date, title: String, body: String)]) {
         Task { [desired] in
             let pending = await center.pendingNotificationRequests()
             let ours = pending.filter { $0.identifier.hasPrefix("reset.") }
@@ -161,17 +174,18 @@ final class UsageNotifier {
                 if let trigger = existing?.trigger as? UNCalendarNotificationTrigger,
                    let next = trigger.nextTriggerDate(),
                    abs(next.timeIntervalSince(entry.date)) < 2,
+                   existing?.content.title == entry.title,
                    existing?.content.body == entry.body {
                     continue
                 }
-                scheduleReset(id: id, date: entry.date, body: entry.body)
+                scheduleReset(id: id, date: entry.date, title: entry.title, body: entry.body)
             }
         }
     }
 
-    private func scheduleReset(id: String, date: Date, body: String) {
+    private func scheduleReset(id: String, date: Date, title: String, body: String) {
         let content = UNMutableNotificationContent()
-        content.title = "respawken"
+        content.title = title
         content.body = body
         content.sound = .default
 
@@ -183,11 +197,21 @@ final class UsageNotifier {
         center.add(UNNotificationRequest(identifier: id, content: content, trigger: trigger))
     }
 
-    private func deliver(id: String, body: String) {
+    private func deliver(id: String, title: String, body: String) {
         let content = UNMutableNotificationContent()
-        content.title = "respawken"
+        content.title = title
         content.body = body
         content.sound = .default
         center.add(UNNotificationRequest(identifier: id, content: content, trigger: nil))
+    }
+
+    // MARK: - Copy
+
+    private func exhaustionBody(name: String, window: UsageWindow, percent: Double) -> String {
+        "\(name)’s \(window.title.lowercased()) just hit \(Format.percent(percent))"
+    }
+
+    private func resetBody(name: String, window: UsageWindow) -> String {
+        "\(name)’s \(window.title.lowercased()) just reset"
     }
 }

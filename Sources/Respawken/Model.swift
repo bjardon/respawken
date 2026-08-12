@@ -52,6 +52,20 @@ struct ProviderID: Hashable, Identifiable, Codable, Sendable, RawRepresentable {
             return "Claude"
         }
     }
+
+    /// Spoken form for Notification Center prose — Claude accounts use parentheses.
+    func notificationName(using accounts: [ClaudeAccount]) -> String {
+        switch rawValue {
+        case Self.codex.rawValue: return "Codex"
+        case Self.cursor.rawValue: return "Cursor"
+        case Self.notion.rawValue: return "Notion AI"
+        default:
+            if let label = accounts.first(where: { $0.id == rawValue })?.label, !label.isEmpty {
+                return "Claude (\(label))"
+            }
+            return "Claude"
+        }
+    }
 }
 
 /// A Claude Code login isolated by `CLAUDE_CONFIG_DIR`.
