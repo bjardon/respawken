@@ -9,6 +9,8 @@
 - [x] **Codex** — OAuth auto-refresh — expired access tokens refresh without re-login
 - [x] **Codex** — 401 / expired-token fallback note (not the generic "API unreachable")
 - [x] **Cursor** — live usage, plan, billing-cycle reset, on-demand spend
+- [x] **Cursor** — labels match Plan & Usage (Cursor Models / Other Models); note uses
+      percent gates, not the dollar `used`/`limit` ledger (that was a false "on bonus")
 - [x] **Claude Code** — live session and weekly windows, plan, reset countdown
 - [x] **Claude Code** — Personal + Work accounts as separate top-level rows / meters
 - [x] An idle Claude session window reads "not started" rather than a bare 0%

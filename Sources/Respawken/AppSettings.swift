@@ -136,8 +136,8 @@ enum IconWindowDefaults {
             return [("primary", "Session"), ("secondary", "Weekly")]
         case ProviderID.cursor.rawValue:
             return [
-                ("included", "Included usage"),
-                ("api", "Named models"),
+                ("included", "Cursor Models"),
+                ("api", "Other Models"),
                 ("onDemand", "On-demand"),
             ]
         case ProviderID.notion.rawValue:

@@ -51,13 +51,15 @@ struct CursorProvider: UsageProvider {
         let individual = json.dict("individualUsage")
         let plan = individual?.dict("plan")
 
+        // Match Cursor's Plan & Usage UI: Cursor Models (auto) + Other Models (API).
+        // Ignore plan.used/limit — those are a dollar ledger in cents, not the quota gate.
         var windows: [UsageWindow] = []
-        if let total = plan?.number("totalPercentUsed") {
-            windows.append(UsageWindow(id: "included", title: "Included usage",
-                                       usedPercent: total, resetsAt: resets))
+        if let auto = plan?.number("autoPercentUsed") {
+            windows.append(UsageWindow(id: "included", title: "Cursor Models",
+                                       usedPercent: auto, resetsAt: resets))
         }
         if let api = plan?.number("apiPercentUsed") {
-            windows.append(UsageWindow(id: "api", title: "Named models",
+            windows.append(UsageWindow(id: "api", title: "Other Models",
                                        usedPercent: api, resetsAt: resets))
         }
         if let onDemand = individual?.dict("onDemand"), onDemand["enabled"] as? Bool == true,
@@ -73,9 +75,20 @@ struct CursorProvider: UsageProvider {
             source: "api"
         )
 
-        // Cursor's own wording is more precise than a raw percentage when a quota is exhausted.
-        if let plan, let used = plan.number("used"), let limit = plan.number("limit"), limit > 0, used >= limit {
-            snapshot.note = "Included requests spent — running on bonus/on-demand"
+        // Percentages gate the plan; only annotate when a bar is actually exhausted.
+        let auto = plan?.number("autoPercentUsed") ?? 0
+        let api = plan?.number("apiPercentUsed") ?? 0
+        let onDemand = individual?.dict("onDemand")
+        let onDemandSpend = onDemand.flatMap { $0.number("used") } ?? 0
+        let onDemandEnabled = onDemand?["enabled"] as? Bool == true
+        if auto >= 100, api >= 100 {
+            if onDemandEnabled, onDemandSpend > 0 {
+                snapshot.note = "Included usage spent — running on on-demand"
+            } else {
+                snapshot.note = "Included usage spent"
+            }
+        } else if auto >= 100 {
+            snapshot.note = "Cursor Models spent — drawing from Other Models"
         }
         return snapshot
     }
