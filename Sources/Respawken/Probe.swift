@@ -77,9 +77,16 @@ enum Probe {
         MainActor.assumeIsolated {
             let store = UsageStore(seed: results)
 
-            let renderer = ImageRenderer(content: PanelView(store: store).background(.background))
-            renderer.scale = 2
-            write(renderer.nsImage, to: output, label: "panel")
+            for tab in PanelTab.allCases {
+                let renderer = ImageRenderer(
+                    content: PanelView(store: store, tab: tab).background(.background)
+                )
+                renderer.scale = 2
+                let path = tab == .overview
+                    ? output
+                    : output.replacingOccurrences(of: ".png", with: "-\(tab.rawValue).png")
+                write(renderer.nsImage, to: path, label: "panel \(tab.title)")
+            }
             write(MenuBarIcon.render(store: store),
                   to: output.replacingOccurrences(of: ".png", with: "-icon.png"), label: "icon")
         }
