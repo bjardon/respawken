@@ -31,8 +31,9 @@ Defaults match Personal (`~/.claude`) and Work (`~/.claude-oxp`). Changes persis
 ./build.sh --run
 ```
 
-That produces `dist/Respawken.app` and launches it. Move the bundle wherever you like; to have it
-start with the machine, add it under System Settings → General → Login Items.
+That produces `dist/Respawken.app` and launches it. First launch registers it as a login item
+(Settings can turn that off). If you move the bundle, toggle Launch at login off and on so
+macOS picks up the new path.
 
 Two extra modes are useful when something looks wrong:
 
@@ -103,6 +104,7 @@ Sources/Respawken/
   Store.swift         polling, concurrency, refresh cadence
   AppSettings.swift   persisted Claude account list
   SettingsView.swift  Settings window UI
+  LaunchAtLogin.swift SMAppService register / unregister
   Notifications.swift  UserNotifications: ≥98% and scheduled resets
   Model.swift         UsageWindow / ProviderSnapshot, formatting
   MenuBarIcon.swift   stacked status meters

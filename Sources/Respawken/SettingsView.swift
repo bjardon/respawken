@@ -4,6 +4,8 @@ import SwiftUI
 struct SettingsView: View {
     @ObservedObject var store: UsageStore
     @State private var accounts: [ClaudeAccount] = []
+    @State private var launchAtLoginEnabled = false
+    @State private var launchAtLoginNote: String?
     @State private var testNotificationNote: String?
 
     var body: some View {
@@ -17,6 +19,24 @@ struct SettingsView: View {
             Divider()
 
             Form {
+                Section {
+                    Toggle("Launch at login", isOn: launchAtLoginBinding)
+                    if LaunchAtLogin.needsApproval {
+                        Text("Approve Respawken in System Settings → General → Login Items.")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                    }
+                    if let launchAtLoginNote {
+                        Text(launchAtLoginNote)
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                    }
+                } header: {
+                    Text("Startup")
+                } footer: {
+                    Text("Starts Respawken when you log in. Also listed under System Settings → General → Login Items.")
+                }
+
                 Section {
                     if accounts.isEmpty {
                         Text("No Claude accounts yet.")
@@ -81,11 +101,29 @@ struct SettingsView: View {
         .frame(minWidth: 560, minHeight: 520)
         .onAppear {
             accounts = store.claudeAccounts
+            launchAtLoginEnabled = LaunchAtLogin.isEnabled
+            launchAtLoginNote = LaunchAtLogin.lastError
             NSApp.activate(ignoringOtherApps: true)
         }
         .onChange(of: accounts) { _, newValue in
             store.updateClaudeAccounts(newValue)
         }
+    }
+
+    private var launchAtLoginBinding: Binding<Bool> {
+        Binding(
+            get: { launchAtLoginEnabled },
+            set: { newValue in
+                launchAtLoginEnabled = newValue
+                if let error = LaunchAtLogin.setEnabled(newValue) {
+                    launchAtLoginEnabled = LaunchAtLogin.isEnabled
+                    launchAtLoginNote = error
+                } else {
+                    launchAtLoginEnabled = LaunchAtLogin.isEnabled
+                    launchAtLoginNote = nil
+                }
+            }
+        )
     }
 }
 

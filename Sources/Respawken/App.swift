@@ -12,6 +12,10 @@ struct RespawkenApp: App {
            let icon = NSImage(contentsOf: url) {
             NSApplication.shared.applicationIconImage = icon
         }
+        // SMAppService needs Launch Services to know about this bundle; App.init is too early.
+        DispatchQueue.main.async {
+            LaunchAtLogin.applyDefaultIfNeeded()
+        }
     }
 
     var body: some Scene {

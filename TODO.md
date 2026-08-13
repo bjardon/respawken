@@ -34,6 +34,8 @@
       Settings → Send Test Notification (and `--test-notification`) to verify the banner icon.
 - [x] Notification copy — wry titles with one emoji each + composed sentence bodies
       (`🔥 Running on fumes` / `✨ Fresh limits` / `👋 Still here`)
+- [x] Launch at login — first launch registers via `SMAppService`; Settings toggle can undo it;
+      later launches don't re-register if it was turned off
 
 ## Known gaps
 
@@ -48,6 +50,5 @@
 
 ## Not done yet
 
-- [ ] Launch at login without adding it by hand in System Settings
 - [ ] Remember the last good reading across restarts, so the panel isn't empty on launch
 - [ ] Reorder Claude accounts in Settings (drag or up/down)
