@@ -64,6 +64,10 @@ Notification Center alerts when any active window hits **≥98%** used, and sche
 each window's reset time (the same timestamp that drives the “resets in …” countdown). Shared
 reset instants (e.g. Cursor's billing cycle) coalesce into one notification per provider.
 
+Copy is wry, not clinical: titles carry a light emoji + vibe (`🔥 Running on fumes`,
+`✨ Fresh limits`), and bodies are short sentences
+(`Claude (Personal)’s session just hit 99%`).
+
 ### Two things worth knowing
 
 **Cursor's state database is ~3 GB.** It's opened read-only with SQLite's `immutable=1`, which

@@ -32,6 +32,8 @@
       `actool`, sets `CFBundleIconName`, and ships a full `.icns`. Bundle id bumped to
       `com.bjardon.respawken.app` so NC drops the blank icon cached from pre-icon builds.
       Settings → Send Test Notification (and `--test-notification`) to verify the banner icon.
+- [x] Notification copy — wry titles with one emoji each + composed sentence bodies
+      (`🔥 Running on fumes` / `✨ Fresh limits` / `👋 Still here`)
 
 ## Known gaps
 
