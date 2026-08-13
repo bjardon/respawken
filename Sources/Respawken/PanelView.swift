@@ -1,8 +1,8 @@
 import AppKit
 import SwiftUI
 
-/// Product tabs sit beside Overview. Claude is one product even when Personal
-/// and Work are separate icon meters — that's the grouping to try.
+/// Overview is the default. A product screen is the same grouping as the old
+/// tabs — Claude still stacks Personal + Work — reached by clicking a row.
 enum PanelTab: String, CaseIterable, Identifiable {
     case overview, claude, codex, cursor, notion
 
@@ -36,30 +36,47 @@ struct PanelView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
-            tabBar
             Divider()
 
             Group {
                 switch tab {
                 case .overview:
                     overviewBody
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 8)
                 default:
                     productBody(providers(for: tab))
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 12)
                 }
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
 
             Divider()
             footer
         }
         .frame(width: 320)
+        .background(ResetOverviewOnOpen { tab = .overview })
     }
 
     private var header: some View {
         HStack(spacing: 6) {
-            Text("respawken")
-                .font(.system(size: 13, weight: .semibold, design: .rounded))
+            if tab == .overview {
+                Text("respawken")
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+            } else {
+                Button {
+                    tab = .overview
+                } label: {
+                    HStack(spacing: 3) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 11, weight: .semibold))
+                        Text(tab.title)
+                            .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    }
+                }
+                .buttonStyle(.plain)
+                .help("Back to Overview")
+            }
             Spacer()
             Button {
                 openWindow(id: "settings")
@@ -83,27 +100,17 @@ struct PanelView: View {
         }
         .padding(.horizontal, 14)
         .padding(.top, 10)
-        .padding(.bottom, 8)
-    }
-
-    private var tabBar: some View {
-        HStack(spacing: 3) {
-            ForEach(PanelTab.allCases) { item in
-                Button(item.title) { tab = item }
-                    .buttonStyle(PanelTabStyle(selected: tab == item))
-            }
-        }
-        .font(.system(size: 10, weight: .medium))
-        .padding(.horizontal, 14)
         .padding(.bottom, 10)
     }
 
     private var overviewBody: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 2) {
             if store.iconOrder.isEmpty {
                 Text("Nothing on the menu bar. Turn providers on in Settings.")
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 4)
             } else {
                 ForEach(store.iconOrder) { provider in
                     Button {
@@ -117,7 +124,7 @@ struct PanelView: View {
                             now: store.tick
                         )
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(OverviewRowStyle())
                     .help("Open \(PanelTab.product(for: provider).title)")
                 }
             }
@@ -176,23 +183,30 @@ struct PanelView: View {
     }
 }
 
-/// Selection is fill + contrast only — same size and weight so the row doesn't jump.
-private struct PanelTabStyle: ButtonStyle {
-    var selected: Bool
-
+private struct OverviewRowStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.system(size: 10, weight: .medium))
-            .lineLimit(1)
-            .multilineTextAlignment(.center)
-            .foregroundStyle(.primary)
-            .padding(.vertical, 5)
-            .frame(maxWidth: .infinity)
+        OverviewRowChrome(pressed: configuration.isPressed) {
+            configuration.label
+        }
+    }
+}
+
+private struct OverviewRowChrome<Content: View>: View {
+    var pressed: Bool
+    @ViewBuilder var content: Content
+    @State private var hovering = false
+
+    var body: some View {
+        content
+            .padding(.horizontal, 8)
+            .padding(.vertical, 7)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             .background(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(Color.primary.opacity(selected ? 0.16 : 0.06))
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color.primary.opacity(pressed ? 0.10 : hovering ? 0.06 : 0))
             )
-            .opacity(configuration.isPressed ? 0.75 : 1)
+            .onHover { hovering = $0 }
     }
 }
 
@@ -217,6 +231,9 @@ private struct OverviewRow: View {
                         .monospacedDigit()
                         .foregroundStyle(UsageLevel(percent: window.clamped).color)
                 }
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(.tertiary)
             }
 
             switch result?.outcome {
@@ -406,5 +423,67 @@ private struct Meter: View {
             }
         }
         .frame(height: 4)
+    }
+}
+
+/// MenuBarExtra keeps PanelView alive after dismiss, so @State would otherwise
+/// reopen on Claude. Reset on a rising edge of shown/key, not while it stays open.
+private struct ResetOverviewOnOpen: NSViewRepresentable {
+    var action: () -> Void
+
+    func makeNSView(context: Context) -> OpenWatcher {
+        let view = OpenWatcher()
+        view.action = action
+        return view
+    }
+
+    func updateNSView(_ view: OpenWatcher, context: Context) {
+        view.action = action
+    }
+}
+
+private final class OpenWatcher: NSView {
+    var action: (() -> Void)?
+    private var observers: [NSObjectProtocol] = []
+    private var wasShown = false
+    private var wasKey = false
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        observers.forEach(NotificationCenter.default.removeObserver)
+        observers = []
+        guard let window else { return }
+        wasShown = Self.isShown(window)
+        wasKey = window.isKeyWindow
+        let center = NotificationCenter.default
+        let names: [Notification.Name] = [
+            NSWindow.didChangeOcclusionStateNotification,
+            NSWindow.didBecomeKeyNotification,
+            NSWindow.didResignKeyNotification,
+        ]
+        observers = names.map { name in
+            center.addObserver(forName: name, object: window, queue: .main) { [weak self] _ in
+                self?.shownChanged()
+            }
+        }
+    }
+
+    deinit {
+        observers.forEach(NotificationCenter.default.removeObserver)
+    }
+
+    private func shownChanged() {
+        guard let window else { return }
+        let shown = Self.isShown(window)
+        let key = window.isKeyWindow
+        if (shown && !wasShown) || (key && !wasKey) {
+            action?()
+        }
+        wasShown = shown
+        wasKey = key
+    }
+
+    private static func isShown(_ window: NSWindow) -> Bool {
+        window.isVisible && window.occlusionState.contains(.visible)
     }
 }

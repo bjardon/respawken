@@ -4,6 +4,10 @@
 
 - [x] Menu bar item showing stacked meters, no Dock icon
 - [x] Dropdown panel with per-window usage, plan, and reset countdown
+- [x] **Overview + product drill-down** — panel opens on one meter per icon slot
+      (the window that drives the menu bar); click a row for that product's full
+      windows. Claude stacks every account on one product page. Reopens on Overview.
+      Hover highlights Overview rows. Tabs were tried and dropped.
 - [x] **Codex** — live usage, plan, weekly window, reset countdown
 - [x] **Codex** — offline fallback to the last session log when the API is unreachable
 - [x] **Codex** — OAuth auto-refresh — expired access tokens refresh without re-login
@@ -52,3 +56,9 @@
 
 - [ ] Remember the last good reading across restarts, so the panel isn't empty on launch
 - [ ] Reorder Claude accounts in Settings (drag or up/down)
+- [ ] Hover states on the other panel controls (back, gear, refresh, Quit)
+- [ ] Keyboard shortcut to toggle the panel
+- [ ] Make the Overview a bit more compact
+- [ ] Richer product drill-downs — Codex reset details, Claude's unproven
+      Opus/Sonnet/Cowork weekly windows, other on-demand extras
+- [ ] **Google Antigravity** — usage in the menu bar / Overview like the other providers

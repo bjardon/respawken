@@ -21,6 +21,10 @@ Notion AI, top to bottom. Fill is utilization, colour is severity (green / amber
 provider that is signed out or failing renders as an empty outline, so a missing reading never
 looks like a healthy zero.
 
+Open the menu extra for a labeled Overview of those same meters. Click a row
+to see that product's full windows (Claude stacks every account). The panel
+reopens on Overview.
+
 Open **Settings** from the gear on the panel to add or edit Claude accounts (label + config dir).
 Defaults match Personal (`~/.claude`) and Work (`~/.claude-oxp`). Changes persist under
 `~/Library/Application Support/Respawken/settings.json`.
