@@ -42,6 +42,7 @@ struct AppSettings: Codable, Equatable, Sendable {
     var claudeAccounts: [ClaudeAccount]
     /// Keyed by `ProviderID.rawValue`. Missing keys behave as `ProviderIconPrefs.default`.
     var providerIconPrefs: [String: ProviderIconPrefs]
+    var language: AppLanguage
 
     static var `default`: AppSettings {
         AppSettings(
@@ -49,24 +50,32 @@ struct AppSettings: Codable, Equatable, Sendable {
                 ClaudeAccount(id: "claude.personal", label: "Personal", configDir: "~/.claude"),
                 ClaudeAccount(id: "claude.work", label: "Work", configDir: "~/.claude-oxp"),
             ],
-            providerIconPrefs: [:]
+            providerIconPrefs: [:],
+            language: .english
         )
     }
 
     private enum CodingKeys: String, CodingKey {
         case claudeAccounts
         case providerIconPrefs
+        case language
     }
 
-    init(claudeAccounts: [ClaudeAccount], providerIconPrefs: [String: ProviderIconPrefs] = [:]) {
+    init(
+        claudeAccounts: [ClaudeAccount],
+        providerIconPrefs: [String: ProviderIconPrefs] = [:],
+        language: AppLanguage = .english
+    ) {
         self.claudeAccounts = claudeAccounts
         self.providerIconPrefs = providerIconPrefs
+        self.language = language
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         claudeAccounts = try container.decode([ClaudeAccount].self, forKey: .claudeAccounts)
         providerIconPrefs = try container.decodeIfPresent([String: ProviderIconPrefs].self, forKey: .providerIconPrefs) ?? [:]
+        language = try container.decodeIfPresent(AppLanguage.self, forKey: .language) ?? .english
     }
 
     func prefs(for provider: ProviderID) -> ProviderIconPrefs {
@@ -99,12 +108,15 @@ struct AppSettings: Codable, Equatable, Sendable {
 
     static func load() -> AppSettings {
         let url = fileURL
-        guard let data = try? Data(contentsOf: url),
-              let decoded = try? JSONDecoder().decode(AppSettings.self, from: data)
-        else {
-            return .default
+        let loaded: AppSettings
+        if let data = try? Data(contentsOf: url),
+           let decoded = try? JSONDecoder().decode(AppSettings.self, from: data) {
+            loaded = decoded
+        } else {
+            loaded = .default
         }
-        return decoded
+        L10n.language = loaded.language
+        return loaded
     }
 
     func save() {
@@ -133,27 +145,27 @@ enum IconWindowDefaults {
     static func options(for provider: ProviderID) -> [(id: String, title: String)] {
         switch provider.rawValue {
         case ProviderID.codex.rawValue:
-            return [("primary", "Session"), ("secondary", "Weekly")]
+            return [("primary", L10n.t(.windowSession)), ("secondary", L10n.t(.windowWeekly))]
         case ProviderID.cursor.rawValue:
             return [
-                ("included", "Cursor Models"),
-                ("api", "Other Models"),
-                ("onDemand", "On-demand"),
+                ("included", L10n.t(.windowCursorModels)),
+                ("api", L10n.t(.windowOtherModels)),
+                ("onDemand", L10n.t(.windowOnDemand)),
             ]
         case ProviderID.notion.rawValue:
             return [
-                ("rolling", "Rolling"),
-                ("monthly", "Monthly"),
-                ("credits", "Credits"),
+                ("rolling", L10n.t(.windowRolling)),
+                ("monthly", L10n.t(.windowMonthly)),
+                ("credits", L10n.t(.windowCredits)),
             ]
         default:
             return [
-                ("five_hour", "Session (5-hour)"),
-                ("seven_day", "Weekly"),
-                ("seven_day_opus", "Weekly · Opus"),
-                ("seven_day_sonnet", "Weekly · Sonnet"),
-                ("seven_day_routines", "Weekly · Routines"),
-                ("seven_day_cowork", "Weekly · Cowork"),
+                ("five_hour", L10n.t(.windowSession5h)),
+                ("seven_day", L10n.t(.windowWeekly)),
+                ("seven_day_opus", L10n.t(.windowWeeklyOpus)),
+                ("seven_day_sonnet", L10n.t(.windowWeeklySonnet)),
+                ("seven_day_routines", L10n.t(.windowWeeklyRoutines)),
+                ("seven_day_cowork", L10n.t(.windowWeeklyCowork)),
             ]
         }
     }

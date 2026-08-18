@@ -91,7 +91,7 @@ struct ClaudeAccount: Identifiable, Codable, Equatable, Sendable {
         return expanded
     }
 
-    static func make(label: String = "New account", configDir: String = "~/.claude") -> ClaudeAccount {
+    static func make(label: String = L10n.t(.newAccount), configDir: String = "~/.claude") -> ClaudeAccount {
         ClaudeAccount(id: "claude.\(UUID().uuidString.lowercased())", label: label, configDir: configDir)
     }
 }
@@ -200,7 +200,7 @@ enum Format {
     /// "6d 22h", "3h 04m", "12m" — deliberately coarse; this is a glanceable app.
     static func countdown(to date: Date, now: Date = Date()) -> String {
         let seconds = Int(date.timeIntervalSince(now))
-        if seconds <= 0 { return "now" }
+        if seconds <= 0 { return L10n.t(.now) }
         let d = seconds / 86_400
         let h = (seconds % 86_400) / 3600
         let m = (seconds % 3600) / 60

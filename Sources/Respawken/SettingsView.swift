@@ -9,8 +9,9 @@ struct SettingsView: View {
     @State private var testNotificationNote: String?
 
     var body: some View {
+        let _ = store.settings.language
         VStack(alignment: .leading, spacing: 0) {
-            Text("Settings")
+            Text(L10n.t(.settings))
                 .font(.system(size: 15, weight: .semibold))
                 .padding(.horizontal, 20)
                 .padding(.top, 18)
@@ -20,9 +21,25 @@ struct SettingsView: View {
 
             Form {
                 Section {
-                    Toggle("Launch at login", isOn: launchAtLoginBinding)
+                    Picker(selection: languageBinding) {
+                        ForEach(AppLanguage.allCases) { language in
+                            Text(language.nativeName).tag(language)
+                        }
+                    } label: {
+                        EmptyView()
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                } header: {
+                    Text(L10n.t(.language))
+                } footer: {
+                    Text(L10n.t(.languageFooter))
+                }
+
+                Section {
+                    Toggle(L10n.t(.launchAtLogin), isOn: launchAtLoginBinding)
                     if LaunchAtLogin.needsApproval {
-                        Text("Approve Respawken in System Settings → General → Login Items.")
+                        Text(L10n.t(.launchAtLoginApprove))
                             .font(.system(size: 12))
                             .foregroundStyle(.secondary)
                     }
@@ -32,14 +49,14 @@ struct SettingsView: View {
                             .foregroundStyle(.secondary)
                     }
                 } header: {
-                    Text("Startup")
+                    Text(L10n.t(.startup))
                 } footer: {
-                    Text("Starts Respawken when you log in. Also listed under System Settings → General → Login Items.")
+                    Text(L10n.t(.launchAtLoginFooter))
                 }
 
                 Section {
                     if accounts.isEmpty {
-                        Text("No Claude accounts yet.")
+                        Text(L10n.t(.noClaudeAccounts))
                             .foregroundStyle(.secondary)
                     }
 
@@ -49,13 +66,13 @@ struct SettingsView: View {
                         }
                     }
 
-                    Button("Add Claude Account") {
+                    Button(L10n.t(.addClaudeAccount)) {
                         accounts.append(.make())
                     }
                 } header: {
-                    Text("Claude accounts")
+                    Text(L10n.t(.claudeAccounts))
                 } footer: {
-                    Text("Each account needs a label and the Claude config directory (`CLAUDE_CONFIG_DIR`). Use `~/.claude` for the default login.")
+                    Text(L10n.t(.claudeAccountsFooter))
                 }
 
                 Section {
@@ -71,18 +88,18 @@ struct SettingsView: View {
                         }
                     }
                 } header: {
-                    Text("Menu bar icon")
+                    Text(L10n.t(.menuBarIcon))
                 } footer: {
-                    Text("Panel order is icon order. Up to \(UsageStore.maxIconProviders) shown providers appear on the icon; fewer collapse to a single column.")
+                    Text(L10n.t(.menuBarIconFooter, UsageStore.maxIconProviders))
                 }
 
                 Section {
-                    Button("Send Test Notification") {
+                    Button(L10n.t(.sendTestNotification)) {
                         Task {
                             let ok = await UsageNotifier.shared.sendTest()
                             testNotificationNote = ok
-                                ? "Sent — check Notification Center."
-                                : "Notifications are off for Respawken. Enable them in System Settings → Notifications."
+                                ? L10n.t(.testNotificationSent)
+                                : L10n.t(.testNotificationOff)
                         }
                     }
                     if let testNotificationNote {
@@ -91,14 +108,14 @@ struct SettingsView: View {
                             .foregroundStyle(.secondary)
                     }
                 } header: {
-                    Text("Notifications")
+                    Text(L10n.t(.notifications))
                 } footer: {
-                    Text("Posts a sample alert so you can confirm permission and the app icon.")
+                    Text(L10n.t(.notificationsFooter))
                 }
             }
             .formStyle(.grouped)
         }
-        .frame(minWidth: 560, minHeight: 520)
+        .frame(minWidth: 560, minHeight: 560)
         .onAppear {
             accounts = store.claudeAccounts
             launchAtLoginEnabled = LaunchAtLogin.isEnabled
@@ -108,6 +125,16 @@ struct SettingsView: View {
         .onChange(of: accounts) { _, newValue in
             store.updateClaudeAccounts(newValue)
         }
+        .onChange(of: store.settings.language) { _, _ in
+            testNotificationNote = nil
+        }
+    }
+
+    private var languageBinding: Binding<AppLanguage> {
+        Binding(
+            get: { store.settings.language },
+            set: { store.updateLanguage($0) }
+        )
     }
 
     private var launchAtLoginBinding: Binding<Bool> {
@@ -134,20 +161,20 @@ private struct AccountEditor: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline) {
-                TextField("Label", text: $account.label)
+                TextField(L10n.t(.label), text: $account.label)
                     .textFieldStyle(.roundedBorder)
                 Button(role: .destructive, action: onRemove) {
                     Image(systemName: "trash")
                 }
                 .buttonStyle(.borderless)
-                .help("Remove account")
+                .help(L10n.t(.removeAccount))
             }
 
             HStack(spacing: 8) {
-                TextField("Config directory", text: $account.configDir)
+                TextField(L10n.t(.configDirectory), text: $account.configDir)
                     .textFieldStyle(.roundedBorder)
                     .font(.system(size: 12, design: .monospaced))
-                Button("Choose…", action: chooseDirectory)
+                Button(L10n.t(.chooseEllipsis), action: chooseDirectory)
             }
         }
         .padding(.vertical, 4)
@@ -158,8 +185,8 @@ private struct AccountEditor: View {
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
-        panel.prompt = "Choose"
-        panel.message = "Select the Claude config directory for “\(account.label)”."
+        panel.prompt = L10n.t(.choose)
+        panel.message = L10n.t(.chooseConfigDirectory, account.label)
 
         let expanded = (account.configDir as NSString).expandingTildeInPath
         if FileManager.default.fileExists(atPath: expanded) {
@@ -193,7 +220,7 @@ private struct IconProviderEditor: View {
             ColorPicker("", selection: colorBinding, supportsOpacity: false)
                 .labelsHidden()
                 .frame(width: 28)
-                .help("Provider colour")
+                .help(L10n.t(.providerColour))
 
             Text(title)
                 .frame(minWidth: 110, alignment: .leading)
@@ -209,7 +236,7 @@ private struct IconProviderEditor: View {
             Toggle("Show", isOn: showBinding)
                 .toggleStyle(.switch)
                 .labelsHidden()
-                .help("Show on menu bar icon")
+                .help(L10n.t(.showOnIcon))
         }
         .padding(.vertical, 2)
     }

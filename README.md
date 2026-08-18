@@ -59,7 +59,9 @@ notification bookkeeping key in UserDefaults).
 | **Claude Code** | Per-account: default `~/.claude` → `Claude Code-credentials`; custom `CLAUDE_CONFIG_DIR` → `Claude Code-credentials-<sha256[:8]>` (or `$dir/.credentials.json`) → `api.anthropic.com/api/oauth/usage` | Multiple logins via Settings (label + config dir). Defaults: Personal on `~/.claude`, Work on `~/.claude-oxp`. Access tokens expire after ~8 hours; respawken refreshes them via `platform.claude.com/v1/oauth/token` and writes the rotated tokens back so Claude Code stays in sync. The usage endpoint returns no account email — rows use your labels. |
 | **Notion AI** | Notion.app Cookies + Keychain `Notion Safe Storage` → `app.notion.com/api/v3/getCreditRateLimitStatus` (+ `getAIUsageEligibilityV2` for credits) | Decrypts the desktop app's `token_v2` session cookie (via `/usr/bin/security`, same prompt avoidance as Claude). Tracks the rolling 6-hour and monthly AI usage allowance on Business/Enterprise, plus Notion credits balance. These are Notion's private web APIs — not the public Connection/PAT surface — and can change without notice. |
 
-Providers are polled every 2 minutes, concurrently, with a 12-second timeout each. One provider
+Providers are polled every 2 minutes, concurrently, with a 12-second timeout each. The cadence
+drops to 30 seconds only while a window is still burning (**90–98%**) or a reset is within
+10 minutes — sitting at 99–100% with hours left stays on the 2-minute poll. One provider
 being slow or signed out never blocks the others.
 
 ### Notifications
@@ -106,7 +108,8 @@ blanking the provider.
 Sources/Respawken/
   App.swift           MenuBarExtra + Settings window
   Store.swift         polling, concurrency, refresh cadence
-  AppSettings.swift   persisted Claude account list
+  AppSettings.swift   persisted Claude account list + language
+  L10n.swift          English / Spanish UI catalog
   SettingsView.swift  Settings window UI
   LaunchAtLogin.swift SMAppService register / unregister
   Notifications.swift  UserNotifications: ≥98% and scheduled resets

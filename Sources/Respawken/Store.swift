@@ -16,6 +16,12 @@ final class UsageStore: ObservableObject {
     private var timer: Task<Void, Never>?
 
     static let refreshInterval: TimeInterval = 120
+    /// Faster poll while a window is still burning toward the cap — not after it's toast.
+    static let urgentRefreshInterval: TimeInterval = 30
+    static let urgentThreshold: Double = 90
+    static let urgentCeiling: Double = 98
+    /// Catch the flip back to 0% without sitting on a 2-minute poll across the reset.
+    static let urgentResetHorizon: TimeInterval = 10 * 60
     static let maxIconProviders = 6
 
     var claudeAccounts: [ClaudeAccount] { settings.claudeAccounts }
@@ -70,7 +76,7 @@ final class UsageStore: ObservableObject {
     /// Window choices for the icon picker: live titles when available, else static defaults.
     func iconWindowOptions(for provider: ProviderID) -> [(id: String, title: String)] {
         if let windows = results[provider]?.snapshot?.windows, !windows.isEmpty {
-            return windows.map { ($0.id, $0.title) }
+            return windows.map { ($0.id, L10n.windowTitle(id: $0.id, stored: $0.title)) }
         }
         return IconWindowDefaults.options(for: provider)
     }
@@ -107,6 +113,16 @@ final class UsageStore: ObservableObject {
         Task { await refresh() }
     }
 
+    func updateLanguage(_ language: AppLanguage) {
+        guard language != settings.language else { return }
+        L10n.language = language
+        var next = settings
+        next.language = language
+        settings = next
+        settings.save()
+        notifier.evaluate(results: results, order: providerOrder, accounts: claudeAccounts)
+    }
+
     func updateIconPrefs(_ prefs: ProviderIconPrefs, for provider: ProviderID) {
         var next = settings
         let current = next.prefs(for: provider)
@@ -116,17 +132,42 @@ final class UsageStore: ObservableObject {
         settings.save()
     }
 
+    /// Speed up only while a reading can still change soon: climbing through 90–98%,
+    /// or a reset due within ten minutes. 99–100% with hours left stays on the 2-minute poll.
+    var isRunningLow: Bool {
+        let now = Date()
+        return results.values.contains { result in
+            result.snapshot?.windows.contains { window in
+                guard window.isActive else { return false }
+                let burning = window.clamped >= Self.urgentThreshold && window.clamped < Self.urgentCeiling
+                if burning { return true }
+                guard let reset = window.resetsAt else { return false }
+                let remaining = reset.timeIntervalSince(now)
+                return remaining > 0 && remaining <= Self.urgentResetHorizon
+            } ?? false
+        }
+    }
+
+    private var nextRefreshInterval: TimeInterval {
+        isRunningLow ? Self.urgentRefreshInterval : Self.refreshInterval
+    }
+
     func start() {
         guard timer == nil else { return }
         timer = Task { [weak self] in
             await self?.notifier.requestAuthorizationIfNeeded()
             while !Task.isCancelled {
                 await self?.refresh()
-                // Wake once a minute so countdowns stay honest between fetches.
-                for _ in 0..<Int(Self.refreshInterval / 60) {
-                    try? await Task.sleep(nanoseconds: 60 * NSEC_PER_SEC)
+                // Sleep in ≤60s slices so countdowns stay honest between fetches.
+                // Interval is picked after each poll: 30s while a window is still
+                // burning (90–98%) or a reset is within 10 minutes, else 2 min.
+                var remaining = self?.nextRefreshInterval ?? Self.refreshInterval
+                while remaining > 0 {
+                    let slice = min(remaining, 60)
+                    try? await Task.sleep(nanoseconds: UInt64(slice * Double(NSEC_PER_SEC)))
                     if Task.isCancelled { return }
-                    await MainActor.run { self?.tick = Date() }
+                    self?.tick = Date()
+                    remaining -= slice
                 }
             }
         }

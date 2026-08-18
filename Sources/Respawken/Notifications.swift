@@ -9,13 +9,6 @@ final class UsageNotifier {
 
     static let exhaustionThreshold = 98.0
 
-    private enum Copy {
-        static let exhaustionTitle = "🔥 Running on fumes"
-        static let resetTitle = "✨ Fresh limits"
-        static let testTitle = "👋 Still here"
-        static let testBody = "Test notification — looking good."
-    }
-
     private let center = UNUserNotificationCenter.current()
     private let defaults = UserDefaults.standard
     private let firedKey = "respawken.notifiedExhaustionCycles"
@@ -44,8 +37,8 @@ final class UsageNotifier {
         }
         let id = "test.\(UUID().uuidString)"
         let content = UNMutableNotificationContent()
-        content.title = Copy.testTitle
-        content.body = Copy.testBody
+        content.title = L10n.t(.notifyTestTitle)
+        content.body = L10n.t(.notifyTestBody)
         content.sound = .default
         // Tiny delay so `--test-notification` can keep the process alive until delivery.
         let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 0.3, repeats: false)
@@ -97,12 +90,13 @@ final class UsageNotifier {
     private func evaluateExhaustion(
         _ currentCycles: [String: (percent: Double, name: String, window: UsageWindow)]
     ) {
-        var fired = Set(defaults.stringArray(forKey: firedKey) ?? [])
+        var fired = Set((defaults.stringArray(forKey: firedKey) ?? []).map(Self.canonicalCycleKey))
 
-        // Drop cycles that vanished, reset, or fell back under the threshold.
+        // Stay silenced for the whole low stretch. Drop only when the window
+        // vanishes or usage falls back under 90% (a real reset, not jitter).
         fired = fired.filter { key in
             guard let entry = currentCycles[key] else { return false }
-            return entry.percent >= Self.exhaustionThreshold
+            return entry.percent >= 90
         }
 
         for (key, entry) in currentCycles where entry.percent >= Self.exhaustionThreshold {
@@ -110,7 +104,7 @@ final class UsageNotifier {
             fired.insert(key)
             deliver(
                 id: "exhaust.\(key)",
-                title: Copy.exhaustionTitle,
+                title: L10n.t(.notifyExhaustionTitle),
                 body: exhaustionBody(name: entry.name, window: entry.window, percent: entry.percent)
             )
         }
@@ -119,8 +113,21 @@ final class UsageNotifier {
     }
 
     private func cycleKey(provider: ProviderID, window: UsageWindow) -> String {
-        let stamp = window.resetsAt.map { String(Int($0.timeIntervalSince1970)) } ?? "none"
-        return "\(provider.rawValue).\(window.id).\(stamp)"
+        // Provider + window only. Claude's resets_at jitters by seconds, so stamping
+        // the instant made every poll look like a new cycle and re-fired "on fumes".
+        "\(provider.rawValue).\(window.id)"
+    }
+
+    /// Old keys were `provider.window.epoch` / `provider.window.none`. Strip the suffix
+    /// so a relaunch after this change doesn't treat them as a fresh cycle.
+    private static func canonicalCycleKey(_ key: String) -> String {
+        if key.hasSuffix(".none") { return String(key.dropLast(5)) }
+        guard let dot = key.lastIndex(of: ".") else { return key }
+        let suffix = key[key.index(after: dot)...]
+        if !suffix.isEmpty, suffix.allSatisfy(\.isNumber) {
+            return String(key[..<dot])
+        }
+        return key
     }
 
     // MARK: - Reset scheduling
@@ -144,8 +151,8 @@ final class UsageNotifier {
            withReset.allSatisfy({ abs($0.1.timeIntervalSince(first)) < 60 }) {
             desired["reset.\(provider.rawValue).shared"] = (
                 first,
-                Copy.resetTitle,
-                "\(name)’s limits just reset"
+                L10n.t(.notifyResetTitle),
+                L10n.t(.notifySharedResetBody, name)
             )
             return
         }
@@ -153,7 +160,7 @@ final class UsageNotifier {
         for (window, date) in withReset {
             desired["reset.\(provider.rawValue).\(window.id)"] = (
                 date,
-                Copy.resetTitle,
+                L10n.t(.notifyResetTitle),
                 resetBody(name: name, window: window)
             )
         }
@@ -208,10 +215,17 @@ final class UsageNotifier {
     // MARK: - Copy
 
     private func exhaustionBody(name: String, window: UsageWindow, percent: Double) -> String {
-        "\(name)’s \(window.title.lowercased()) just hit \(Format.percent(percent))"
+        let title = L10n.windowTitle(id: window.id, stored: window.title)
+        return L10n.t(
+            .notifyExhaustionBody,
+            name,
+            L10n.notificationWindowPhrase(title),
+            Format.percent(percent)
+        )
     }
 
     private func resetBody(name: String, window: UsageWindow) -> String {
-        "\(name)’s \(window.title.lowercased()) just reset"
+        let title = L10n.windowTitle(id: window.id, stored: window.title)
+        return L10n.t(.notifyResetBody, name, L10n.notificationWindowPhrase(title))
     }
 }

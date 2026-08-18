@@ -19,7 +19,12 @@
 - [x] **Claude Code** — Personal + Work accounts as separate top-level rows / meters
 - [x] An idle Claude session window reads "not started" rather than a bare 0%
 - [x] Signed-out and error states that read as "no data", not "0% used"
-- [x] Auto-refresh every 2 minutes + manual refresh; countdowns tick every minute
+- [x] Auto-refresh every 2 minutes (30s while a window is still burning 90–98%, or a
+      reset is within 10 minutes) + manual refresh; countdowns tick every minute
+- [x] Exhaustion notification fires once per window until usage drops back under 90%
+      (Claude's jittery `resets_at` no longer re-triggers "on fumes")
+- [x] **Language** — Settings picker for English / Español; panel, Settings, and
+      notifications switch instantly from an in-app catalog
 - [x] `--probe` (print live values) and `--preview` (render the UI to a PNG)
 - [x] `build.sh` producing a signed `Respawken.app`
 - [x] No Keychain password prompt, on any build — Claude's secret is read via `/usr/bin/security`

@@ -19,6 +19,8 @@ struct RespawkenApp: App {
     }
 
     var body: some Scene {
+        // Re-evaluate window titles when language changes.
+        let _ = store.settings.language
         MenuBarExtra {
             PanelView(store: store)
                 .task { store.start() }
@@ -31,10 +33,10 @@ struct RespawkenApp: App {
         }
         .menuBarExtraStyle(.window)
 
-        Window("Settings", id: "settings") {
+        Window(L10n.t(.settings), id: "settings") {
             SettingsView(store: store)
         }
         .windowResizability(.contentSize)
-        .defaultSize(width: 560, height: 560)
+        .defaultSize(width: 560, height: 600)
     }
 }

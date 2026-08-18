@@ -10,7 +10,7 @@ enum PanelTab: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .overview: return "Overview"
+        case .overview: return L10n.t(.overview)
         case .claude: return "Claude"
         case .codex: return "Codex"
         case .cursor: return "Cursor"
@@ -34,6 +34,7 @@ struct PanelView: View {
     @State var tab: PanelTab = .overview
 
     var body: some View {
+        let _ = store.settings.language
         VStack(alignment: .leading, spacing: 0) {
             header
             Divider()
@@ -75,7 +76,7 @@ struct PanelView: View {
                     }
                 }
                 .buttonStyle(.plain)
-                .help("Back to Overview")
+                .help(L10n.t(.backToOverview))
             }
             Spacer()
             Button {
@@ -85,7 +86,7 @@ struct PanelView: View {
                 Image(systemName: "gearshape").font(.system(size: 11, weight: .medium))
             }
             .buttonStyle(.plain)
-            .help("Settings")
+            .help(L10n.t(.settings))
             if store.isRefreshing {
                 ProgressView().controlSize(.small).scaleEffect(0.7).frame(width: 14, height: 14)
             } else {
@@ -95,7 +96,7 @@ struct PanelView: View {
                     Image(systemName: "arrow.clockwise").font(.system(size: 11, weight: .medium))
                 }
                 .buttonStyle(.plain)
-                .help("Refresh now")
+                .help(L10n.t(.refreshNow))
             }
         }
         .padding(.horizontal, 14)
@@ -106,7 +107,7 @@ struct PanelView: View {
     private var overviewBody: some View {
         VStack(alignment: .leading, spacing: 2) {
             if store.iconOrder.isEmpty {
-                Text("Nothing on the menu bar. Turn providers on in Settings.")
+                Text(L10n.t(.emptyIcon))
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 6)
@@ -125,7 +126,7 @@ struct PanelView: View {
                         )
                     }
                     .buttonStyle(OverviewRowStyle())
-                    .help("Open \(PanelTab.product(for: provider).title)")
+                    .help(L10n.t(.openProduct, PanelTab.product(for: provider).title))
                 }
             }
         }
@@ -134,7 +135,7 @@ struct PanelView: View {
     private func productBody(_ providers: [ProviderID]) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             if providers.isEmpty {
-                Text("No \(tab.title) accounts. Add one in Settings.")
+                Text(L10n.t(.noProductAccounts, tab.title))
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
             } else {
@@ -166,7 +167,7 @@ struct PanelView: View {
                 .font(.system(size: 10))
                 .foregroundStyle(.tertiary)
             Spacer()
-            Button("Quit") { NSApplication.shared.terminate(nil) }
+            Button(L10n.t(.quit)) { NSApplication.shared.terminate(nil) }
                 .buttonStyle(.plain)
                 .font(.system(size: 10))
                 .foregroundStyle(.secondary)
@@ -176,10 +177,10 @@ struct PanelView: View {
     }
 
     private var lastRefreshLabel: String {
-        guard let last = store.lastRefresh else { return "Loading…" }
+        guard let last = store.lastRefresh else { return L10n.t(.loading) }
         let elapsed = Int(store.tick.timeIntervalSince(last))
-        if elapsed < 60 { return "Updated just now" }
-        return "Updated \(Format.countdown(to: Date(), now: last)) ago"
+        if elapsed < 60 { return L10n.t(.updatedJustNow) }
+        return L10n.t(.updatedAgo, Format.countdown(to: Date(), now: last))
     }
 }
 
@@ -238,33 +239,33 @@ private struct OverviewRow: View {
 
             switch result?.outcome {
             case .none:
-                message("Checking…", color: .tertiary)
+                message(L10n.t(.checking), color: .tertiary)
 
             case .ok:
                 if let window = iconWindow {
-                    Text(window.title)
+                    Text(L10n.windowTitle(id: window.id, stored: window.title))
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)
                     Meter(fraction: window.clamped / 100, level: UsageLevel(percent: window.clamped))
                     if let resets = window.resetsAt {
-                        Text("resets in \(Format.countdown(to: resets, now: now))")
+                        Text(L10n.t(.resetsIn, Format.countdown(to: resets, now: now)))
                             .font(.system(size: 9))
                             .foregroundStyle(.tertiary)
                             .monospacedDigit()
                     } else if !window.isActive {
-                        Text("not started")
+                        Text(L10n.t(.notStarted))
                             .font(.system(size: 9))
                             .foregroundStyle(.tertiary)
                     }
                 } else {
-                    message(result?.snapshot?.note ?? "No usage reported", color: .secondary)
+                    message(L10n.display(result?.snapshot?.note ?? L10n.t(.noUsageReported)), color: .secondary)
                 }
 
             case .signedOut(let hint):
-                message(hint, color: .secondary)
+                message(L10n.display(hint), color: .secondary)
 
             case .failed(let reason, _):
-                message(reason, color: Color(red: 0.93, green: 0.35, blue: 0.32))
+                message(L10n.display(reason), color: Color(red: 0.93, green: 0.35, blue: 0.32))
             }
         }
         .contentShape(Rectangle())
@@ -308,16 +309,16 @@ private struct ProviderRow: View {
 
             switch result?.outcome {
             case .none:
-                message("Checking…", color: .tertiary)
+                message(L10n.t(.checking), color: .tertiary)
 
             case .ok(let snapshot):
                 SnapshotBody(snapshot: snapshot, now: now)
 
             case .signedOut(let hint):
-                message(hint, color: .secondary)
+                message(L10n.display(hint), color: .secondary)
 
             case .failed(let reason, _):
-                message(reason, color: Color(red: 0.93, green: 0.35, blue: 0.32))
+                message(L10n.display(reason), color: Color(red: 0.93, green: 0.35, blue: 0.32))
             }
         }
     }
@@ -336,7 +337,7 @@ private struct SnapshotBody: View {
 
     var body: some View {
         if snapshot.windows.isEmpty {
-            Text(snapshot.note ?? "No usage reported")
+            Text(L10n.display(snapshot.note ?? L10n.t(.noUsageReported)))
                 .font(.system(size: 10))
                 .foregroundStyle(.secondary)
         } else {
@@ -346,19 +347,19 @@ private struct SnapshotBody: View {
             }
             if let shared {
                 // Every window resets together (Cursor's billing cycle), so say it once.
-                Text("resets in \(Format.countdown(to: shared, now: now))")
+                Text(L10n.t(.resetsIn, Format.countdown(to: shared, now: now)))
                     .font(.system(size: 9))
                     .foregroundStyle(.tertiary)
                     .monospacedDigit()
             }
         }
         if let note = snapshot.note, !snapshot.windows.isEmpty {
-            Text(note)
+            Text(L10n.display(note))
                 .font(.system(size: 10))
                 .foregroundStyle(.secondary)
         }
         if snapshot.source != "api" {
-            Text(snapshot.source)
+            Text(L10n.display(snapshot.source))
                 .font(.system(size: 10))
                 .foregroundStyle(.tertiary)
         }
@@ -383,7 +384,7 @@ private struct WindowRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             HStack(spacing: 4) {
-                Text(window.title)
+                Text(L10n.windowTitle(id: window.id, stored: window.title))
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -396,12 +397,12 @@ private struct WindowRow: View {
             Meter(fraction: window.clamped / 100, level: UsageLevel(percent: window.clamped))
 
             if showsReset, let resets = window.resetsAt {
-                Text("resets in \(Format.countdown(to: resets, now: now))")
+                Text(L10n.t(.resetsIn, Format.countdown(to: resets, now: now)))
                     .font(.system(size: 9))
                     .foregroundStyle(.tertiary)
                     .monospacedDigit()
             } else if !window.isActive {
-                Text("not started")
+                Text(L10n.t(.notStarted))
                     .font(.system(size: 9))
                     .foregroundStyle(.tertiary)
             }
