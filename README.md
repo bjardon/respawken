@@ -25,7 +25,8 @@ Open the menu extra for a labeled Overview of those same meters. Click a row
 to see that product's full windows (Claude stacks every account). The panel
 reopens on Overview.
 
-Open **Settings** from the gear on the panel to add or edit Claude accounts (label + config dir).
+Open **Settings** from the gear on the panel to add or edit Claude accounts (label + config dir),
+and to change the keyboard shortcut that toggles the panel (default **⌃⌥U**).
 Defaults match Personal (`~/.claude`) and Work (`~/.claude-oxp`). Changes persist under
 `~/Library/Application Support/Respawken/settings.json`.
 
@@ -108,7 +109,8 @@ blanking the provider.
 Sources/Respawken/
   App.swift           MenuBarExtra + Settings window
   Store.swift         polling, concurrency, refresh cadence
-  AppSettings.swift   persisted Claude account list + language
+  AppSettings.swift   persisted Claude account list + language + shortcut
+  HotKey.swift        global panel shortcut + MenuBarExtra toggle
   L10n.swift          English / Spanish UI catalog
   SettingsView.swift  Settings window UI
   LaunchAtLogin.swift SMAppService register / unregister

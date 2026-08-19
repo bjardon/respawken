@@ -43,6 +43,8 @@ struct AppSettings: Codable, Equatable, Sendable {
     /// Keyed by `ProviderID.rawValue`. Missing keys behave as `ProviderIconPrefs.default`.
     var providerIconPrefs: [String: ProviderIconPrefs]
     var language: AppLanguage
+    /// `nil` means the shortcut is off. Missing from disk still gets the default.
+    var panelShortcut: KeyCombo?
 
     static var `default`: AppSettings {
         AppSettings(
@@ -51,7 +53,8 @@ struct AppSettings: Codable, Equatable, Sendable {
                 ClaudeAccount(id: "claude.work", label: "Work", configDir: "~/.claude-oxp"),
             ],
             providerIconPrefs: [:],
-            language: .english
+            language: .english,
+            panelShortcut: .defaultPanelToggle
         )
     }
 
@@ -59,16 +62,19 @@ struct AppSettings: Codable, Equatable, Sendable {
         case claudeAccounts
         case providerIconPrefs
         case language
+        case panelShortcut
     }
 
     init(
         claudeAccounts: [ClaudeAccount],
         providerIconPrefs: [String: ProviderIconPrefs] = [:],
-        language: AppLanguage = .english
+        language: AppLanguage = .english,
+        panelShortcut: KeyCombo? = .defaultPanelToggle
     ) {
         self.claudeAccounts = claudeAccounts
         self.providerIconPrefs = providerIconPrefs
         self.language = language
+        self.panelShortcut = panelShortcut
     }
 
     init(from decoder: Decoder) throws {
@@ -76,6 +82,19 @@ struct AppSettings: Codable, Equatable, Sendable {
         claudeAccounts = try container.decode([ClaudeAccount].self, forKey: .claudeAccounts)
         providerIconPrefs = try container.decodeIfPresent([String: ProviderIconPrefs].self, forKey: .providerIconPrefs) ?? [:]
         language = try container.decodeIfPresent(AppLanguage.self, forKey: .language) ?? .english
+        if container.contains(.panelShortcut) {
+            panelShortcut = try container.decodeIfPresent(KeyCombo.self, forKey: .panelShortcut)
+        } else {
+            panelShortcut = .defaultPanelToggle
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(claudeAccounts, forKey: .claudeAccounts)
+        try container.encode(providerIconPrefs, forKey: .providerIconPrefs)
+        try container.encode(language, forKey: .language)
+        try container.encode(panelShortcut, forKey: .panelShortcut)
     }
 
     func prefs(for provider: ProviderID) -> ProviderIconPrefs {

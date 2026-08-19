@@ -45,6 +45,8 @@
       (`🔥 Running on fumes` / `✨ Fresh limits` / `👋 Still here`)
 - [x] Launch at login — first launch registers via `SMAppService`; Settings toggle can undo it;
       later launches don't re-register if it was turned off
+- [x] **Keyboard shortcut** — global hotkey toggles the panel (default ⌃⌥U);
+      Settings → Keyboard to change or clear it. No Accessibility permission.
 
 ## Known gaps
 
@@ -62,7 +64,6 @@
 - [ ] Remember the last good reading across restarts, so the panel isn't empty on launch
 - [ ] Reorder Claude accounts in Settings (drag or up/down)
 - [ ] Hover states on the other panel controls (back, gear, refresh, Quit)
-- [ ] Keyboard shortcut to toggle the panel
 - [ ] Make the Overview a bit more compact
 - [ ] Richer product drill-downs — Codex reset details, Claude's unproven
       Opus/Sonnet/Cowork weekly windows, other on-demand extras

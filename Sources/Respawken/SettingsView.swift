@@ -6,6 +6,7 @@ struct SettingsView: View {
     @State private var accounts: [ClaudeAccount] = []
     @State private var launchAtLoginEnabled = false
     @State private var launchAtLoginNote: String?
+    @State private var shortcutNote: String?
     @State private var testNotificationNote: String?
 
     var body: some View {
@@ -52,6 +53,23 @@ struct SettingsView: View {
                     Text(L10n.t(.startup))
                 } footer: {
                     Text(L10n.t(.launchAtLoginFooter))
+                }
+
+                Section {
+                    HStack {
+                        Text(L10n.t(.togglePanel))
+                        Spacer()
+                        ShortcutRecorder(combo: panelShortcutBinding)
+                    }
+                    if let shortcutNote {
+                        Text(shortcutNote)
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                    }
+                } header: {
+                    Text(L10n.t(.keyboard))
+                } footer: {
+                    Text(L10n.t(.shortcutFooter))
                 }
 
                 Section {
@@ -127,6 +145,7 @@ struct SettingsView: View {
         }
         .onChange(of: store.settings.language) { _, _ in
             testNotificationNote = nil
+            shortcutNote = nil
         }
     }
 
@@ -134,6 +153,19 @@ struct SettingsView: View {
         Binding(
             get: { store.settings.language },
             set: { store.updateLanguage($0) }
+        )
+    }
+
+    private var panelShortcutBinding: Binding<KeyCombo?> {
+        Binding(
+            get: { store.settings.panelShortcut },
+            set: { newValue in
+                if store.updatePanelShortcut(newValue) {
+                    shortcutNote = nil
+                } else {
+                    shortcutNote = L10n.t(.shortcutConflict)
+                }
+            }
         )
     }
 
@@ -277,5 +309,121 @@ private struct IconProviderEditor: View {
                 onChange(next)
             }
         )
+    }
+}
+
+private struct ShortcutRecorder: View {
+    @Binding var combo: KeyCombo?
+    @State private var recording = false
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Button {
+                recording.toggle()
+            } label: {
+                Text(label)
+                    .font(.system(size: 13, design: .rounded))
+                    .monospaced()
+                    .frame(minWidth: 92)
+            }
+            .buttonStyle(.bordered)
+            .tint(recording ? Color.accentColor : nil)
+
+            if combo != nil && !recording {
+                Button {
+                    combo = nil
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.borderless)
+                .help(L10n.t(.clearShortcut))
+            }
+        }
+        .background {
+            ShortcutMonitor(isRecording: $recording, combo: $combo)
+        }
+    }
+
+    private var label: String {
+        if recording { return L10n.t(.typeShortcut) }
+        return combo?.display ?? L10n.t(.shortcutNone)
+    }
+}
+
+/// Coordinator owns the event monitor so keystrokes mutate the live bindings, not a View copy.
+private struct ShortcutMonitor: NSViewRepresentable {
+    @Binding var isRecording: Bool
+    @Binding var combo: KeyCombo?
+
+    func makeNSView(context: Context) -> NSView { NSView() }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        context.coordinator.isRecording = $isRecording
+        context.coordinator.combo = $combo
+        context.coordinator.setRecording(isRecording)
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(isRecording: $isRecording, combo: $combo)
+    }
+
+    static func dismantleNSView(_ nsView: NSView, coordinator: Coordinator) {
+        coordinator.setRecording(false)
+    }
+
+    @MainActor
+    final class Coordinator {
+        var isRecording: Binding<Bool>
+        var combo: Binding<KeyCombo?>
+        private var monitor: Any?
+        private var armed = false
+
+        init(isRecording: Binding<Bool>, combo: Binding<KeyCombo?>) {
+            self.isRecording = isRecording
+            self.combo = combo
+        }
+
+        func setRecording(_ recording: Bool) {
+            guard recording != armed else { return }
+            armed = recording
+            if recording {
+                PanelHotKey.shared.pause()
+                startMonitor()
+            } else {
+                stopMonitor()
+                PanelHotKey.shared.resume()
+            }
+        }
+
+        private func startMonitor() {
+            stopMonitor()
+            monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+                self?.handle(event)
+                return nil
+            }
+        }
+
+        private func stopMonitor() {
+            if let monitor {
+                NSEvent.removeMonitor(monitor)
+                self.monitor = nil
+            }
+        }
+
+        private func handle(_ event: NSEvent) {
+            let flags = event.modifierFlags.intersection([.command, .option, .control, .shift])
+            switch event.keyCode {
+            case 53:
+                isRecording.wrappedValue = false
+            case 51, 117:
+                combo.wrappedValue = nil
+                isRecording.wrappedValue = false
+            default:
+                guard KeyCombo.isValid(keyCode: event.keyCode, modifiers: flags) else { return }
+                combo.wrappedValue = KeyCombo(keyCode: event.keyCode, modifiers: flags)
+                isRecording.wrappedValue = false
+            }
+        }
     }
 }

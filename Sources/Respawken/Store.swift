@@ -123,6 +123,15 @@ final class UsageStore: ObservableObject {
         notifier.evaluate(results: results, order: providerOrder, accounts: claudeAccounts)
     }
 
+    @discardableResult
+    func updatePanelShortcut(_ combo: KeyCombo?) -> Bool {
+        var next = settings
+        next.panelShortcut = combo
+        settings = next
+        settings.save()
+        return PanelHotKey.shared.install(combo)
+    }
+
     func updateIconPrefs(_ prefs: ProviderIconPrefs, for provider: ProviderID) {
         var next = settings
         let current = next.prefs(for: provider)
@@ -154,6 +163,7 @@ final class UsageStore: ObservableObject {
 
     func start() {
         guard timer == nil else { return }
+        PanelHotKey.shared.install(settings.panelShortcut)
         timer = Task { [weak self] in
             await self?.notifier.requestAuthorizationIfNeeded()
             while !Task.isCancelled {

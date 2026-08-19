@@ -114,6 +114,13 @@ enum L10n {
         case launchAtLogin
         case launchAtLoginApprove
         case launchAtLoginFooter
+        case keyboard
+        case togglePanel
+        case shortcutFooter
+        case typeShortcut
+        case shortcutNone
+        case shortcutConflict
+        case clearShortcut
         case noClaudeAccounts
         case addClaudeAccount
         case claudeAccounts
@@ -209,6 +216,19 @@ enum L10n {
             .english: "Starts Respawken when you log in. Also listed under System Settings → General → Login Items.",
             .spanish: "Abre Respawken al iniciar sesión. También aparece en Ajustes del Sistema → General → Elementos de inicio.",
         ],
+        .keyboard: [.english: "Keyboard", .spanish: "Teclado"],
+        .togglePanel: [.english: "Toggle panel", .spanish: "Mostrar/ocultar el panel"],
+        .shortcutFooter: [
+            .english: "Opens the panel from any app. Click the shortcut and press a new one. Delete clears it. Needs at least ⌃, ⌥, or ⌘.",
+            .spanish: "Abre el panel desde cualquier app. Haz clic en el atajo y pulsa uno nuevo. Suprimir lo quita. Hace falta al menos ⌃, ⌥ o ⌘.",
+        ],
+        .typeShortcut: [.english: "Type shortcut", .spanish: "Pulsa un atajo"],
+        .shortcutNone: [.english: "None", .spanish: "Ninguno"],
+        .shortcutConflict: [
+            .english: "Couldn’t take that shortcut — another app may already use it.",
+            .spanish: "No se pudo usar ese atajo — puede que otra app ya lo tenga.",
+        ],
+        .clearShortcut: [.english: "Clear shortcut", .spanish: "Quitar atajo"],
         .noClaudeAccounts: [.english: "No Claude accounts yet.", .spanish: "Aún no hay cuentas de Claude."],
         .addClaudeAccount: [.english: "Add Claude Account", .spanish: "Añadir cuenta de Claude"],
         .claudeAccounts: [.english: "Claude accounts", .spanish: "Cuentas de Claude"],
