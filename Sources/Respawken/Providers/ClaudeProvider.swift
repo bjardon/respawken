@@ -92,12 +92,12 @@ struct ClaudeProvider: UsageProvider {
         }
 
         do {
-            return .ok(parse(try await fetchUsage(token: credentials.accessToken), credentials: credentials))
+            return .ok(try await snapshot(token: credentials.accessToken, credentials: credentials))
         } catch let failure as HTTP.Failure where failure.status == 401 || failure.status == 403 {
             // Token may have been revoked mid-flight; try one refresh before asking the user.
             if let outcome = mapRefresh(await refresh(&credentials)) { return outcome }
             do {
-                return .ok(parse(try await fetchUsage(token: credentials.accessToken), credentials: credentials))
+                return .ok(try await snapshot(token: credentials.accessToken, credentials: credentials))
             } catch {
                 return mapUsageError(error)
             }
@@ -117,6 +117,21 @@ struct ClaudeProvider: UsageProvider {
             "Accept": "application/json",
             "User-Agent": userAgent(),
         ])
+    }
+
+    private func fetchProfile(token: String) async -> [String: Any]? {
+        try? await HTTP.getJSON("https://api.anthropic.com/api/oauth/profile", headers: [
+            "Authorization": "Bearer \(token)",
+            "anthropic-beta": "oauth-2025-04-20",
+            "Accept": "application/json",
+            "User-Agent": userAgent(),
+        ])
+    }
+
+    private func snapshot(token: String, credentials: Credentials) async throws -> ProviderSnapshot {
+        async let usage = fetchUsage(token: token)
+        async let profile = fetchProfile(token: token)
+        return parse(try await usage, credentials: credentials, profile: await profile)
     }
 
     // MARK: - OAuth refresh
@@ -322,7 +337,11 @@ struct ClaudeProvider: UsageProvider {
         ("seven_day_cowork", "Weekly · Cowork", "weekly_cowork"),
     ]
 
-    private func parse(_ json: [String: Any], credentials: Credentials) -> ProviderSnapshot {
+    private func parse(
+        _ json: [String: Any],
+        credentials: Credentials,
+        profile: [String: Any]?
+    ) -> ProviderSnapshot {
         // The parallel `limits` array is the only place that says whether a window is running.
         var activeByKind: [String: Bool] = [:]
         for limit in json["limits"] as? [[String: Any]] ?? [] {
@@ -353,6 +372,10 @@ struct ClaudeProvider: UsageProvider {
             windows: windows,
             source: "api"
         )
+
+        if let created = profile?.dict("organization")?.date("subscription_created_at") {
+            snapshot.renewsAt = Format.nextMonthly(from: created)
+        }
 
         if let extra = json.dict("extra_usage"), let spend = extra.number("spend", "used") {
             let limit = extra.number("limit").map { String(format: " / $%.0f", $0) } ?? ""

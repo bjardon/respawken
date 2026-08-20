@@ -155,6 +155,7 @@ enum L10n {
         case checking
         case noUsageReported
         case resetsIn
+        case renewsOn
         case notStarted
         case now
 
@@ -287,6 +288,7 @@ enum L10n {
         .checking: [.english: "Checking…", .spanish: "Comprobando…"],
         .noUsageReported: [.english: "No usage reported", .spanish: "Sin datos de uso"],
         .resetsIn: [.english: "resets in %@", .spanish: "se reinicia en %@"],
+        .renewsOn: [.english: "Renews: %@", .spanish: "Se renueva: %@"],
         .notStarted: [.english: "not started", .spanish: "sin empezar"],
         .now: [.english: "now", .spanish: "ahora"],
 

@@ -72,6 +72,7 @@ struct CursorProvider: UsageProvider {
             plan: json.string("membershipType").map(planLabel),
             account: StateDB.value(forKey: "cursorAuth/cachedEmail", at: stateDBPath),
             windows: windows,
+            renewsAt: resets,
             source: "api"
         )
 

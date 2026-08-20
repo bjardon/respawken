@@ -31,6 +31,9 @@ enum Probe {
                             ?? (window.isActive ? "" : " (not started)")
                         print("  - \(window.title): \(Format.percent(window.clamped))\(suffix)")
                     }
+                    if let renews = snapshot.renewsAt {
+                        print("  renews \(Format.billingDate(renews))")
+                    }
                     if let note = snapshot.note { print("  note: \(note)") }
                 case .signedOut(let hint):
                     print("  signed out — \(hint)")

@@ -358,6 +358,9 @@ private struct SnapshotBody: View {
                 .font(.system(size: 10))
                 .foregroundStyle(.secondary)
         }
+        if let renews = snapshot.renewsAt {
+            RenewsRow(date: renews)
+        }
         if snapshot.source != "api" {
             Text(L10n.display(snapshot.source))
                 .font(.system(size: 10))
@@ -365,13 +368,13 @@ private struct SnapshotBody: View {
         }
     }
 
-    /// The single reset instant shared by every window, or nil when they differ.
+    /// The reset instant shared by every window that has one, when they agree.
+    /// Windows without a date (idle session, rolling with no `resetsInSeconds`)
+    /// don't block collapsing Cursor/Notion's billing cycle to one footer.
     private func sharedReset(_ windows: [UsageWindow]) -> Date? {
-        guard windows.count > 1, let first = windows.first?.resetsAt else { return nil }
-        let same = windows.allSatisfy { window in
-            guard let date = window.resetsAt else { return false }
-            return abs(date.timeIntervalSince(first)) < 60
-        }
+        let dates = windows.compactMap(\.resetsAt)
+        guard dates.count > 1, let first = dates.first else { return nil }
+        let same = dates.allSatisfy { abs($0.timeIntervalSince(first)) < 60 }
         return same ? first : nil
     }
 }
@@ -407,6 +410,17 @@ private struct WindowRow: View {
                     .foregroundStyle(.tertiary)
             }
         }
+    }
+}
+
+/// Dedicated fact line, same weight as "Credits left: 300".
+private struct RenewsRow: View {
+    let date: Date
+
+    var body: some View {
+        Text(L10n.t(.renewsOn, Format.billingDate(date)))
+            .font(.system(size: 10))
+            .foregroundStyle(.secondary)
     }
 }
 

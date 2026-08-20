@@ -114,6 +114,8 @@ struct ProviderSnapshot {
     var plan: String?
     var account: String?
     var windows: [UsageWindow]
+    /// Paid-plan billing date, distinct from usage-window `resetsAt`.
+    var renewsAt: Date? = nil
     /// Where the numbers came from, shown in the panel footer of the row.
     var source: String
     var note: String?
@@ -211,6 +213,27 @@ enum Format {
 
     static func percent(_ value: Double) -> String {
         value >= 9.95 ? "\(Int(value.rounded()))%" : String(format: "%.1f%%", value)
+    }
+
+    /// "Aug 30, 2026" — billing dashboards show a calendar day, not a clock time.
+    static func billingDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: L10n.language.rawValue)
+        formatter.setLocalizedDateFormatFromTemplate("yMMMd")
+        return formatter.string(from: date)
+    }
+
+    /// Next future monthly anniversary of `date` in the local calendar.
+    /// ChatGPT/Claude store an old period start in UTC; the Settings page shows the local day.
+    static func nextMonthly(from date: Date, now: Date = Date()) -> Date {
+        let calendar = Calendar.current
+        var candidate = date
+        for _ in 0..<36 {
+            if candidate > now { return candidate }
+            guard let next = calendar.date(byAdding: .month, value: 1, to: candidate) else { break }
+            candidate = next
+        }
+        return candidate
     }
 
     /// Turns a rolling window length into a human name: 18000s -> "5-hour".

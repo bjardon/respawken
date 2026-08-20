@@ -305,6 +305,7 @@ struct NotionProvider: UsageProvider {
             plan: workspace.tierLabel,
             account: account ?? workspace.name,
             windows: windows,
+            renewsAt: rate.dict("billingPeriodWindow")?.date("periodEndMs"),
             source: "notion.app",
             note: note
         )

@@ -47,6 +47,10 @@
       later launches don't re-register if it was turned off
 - [x] **Keyboard shortcut** — global hotkey toggles the panel (default ⌃⌥U);
       Settings → Keyboard to change or clear it. No Accessibility permission.
+- [x] **Subscription renewal date** — product pages show a dedicated `Renews:` row
+      for the paid plan (not the usage-window reset). Claude from
+      `subscription_created_at`, Codex from the ChatGPT id-token period, Cursor
+      and Notion from their billing-cycle end.
 
 ## Known gaps
 
@@ -65,6 +69,6 @@
 - [ ] Reorder Claude accounts in Settings (drag or up/down)
 - [ ] Hover states on the other panel controls (back, gear, refresh, Quit)
 - [ ] Make the Overview a bit more compact
-- [ ] Richer product drill-downs — Codex reset details, Claude's unproven
-      Opus/Sonnet/Cowork weekly windows, other on-demand extras
+- [ ] Richer product drill-downs — Claude's unproven Opus/Sonnet/Cowork weekly
+      windows, other on-demand extras
 - [ ] **Google Antigravity** — usage in the menu bar / Overview like the other providers

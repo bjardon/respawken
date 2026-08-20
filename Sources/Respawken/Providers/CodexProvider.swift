@@ -48,21 +48,21 @@ struct CodexProvider: UsageProvider {
         }
 
         if credentials.isExpiredOrNearExpiry {
-            if let outcome = mapRefresh(await refresh(&credentials)) { return outcome }
+            if let outcome = mapRefresh(await refresh(&credentials), renewal: renewalDate(from: credentials)) { return outcome }
         }
 
         do {
-            return .ok(parse(try await fetchUsage(token: credentials.accessToken)))
+            return .ok(parse(try await fetchUsage(token: credentials.accessToken), renewal: renewalDate(from: credentials)))
         } catch let failure as HTTP.Failure where failure.status == 401 {
             // Token may have been revoked mid-flight; try one refresh before falling back.
-            if let outcome = mapRefresh(await refresh(&credentials)) { return outcome }
+            if let outcome = mapRefresh(await refresh(&credentials), renewal: renewalDate(from: credentials)) { return outcome }
             do {
-                return .ok(parse(try await fetchUsage(token: credentials.accessToken)))
+                return .ok(parse(try await fetchUsage(token: credentials.accessToken), renewal: renewalDate(from: credentials)))
             } catch {
-                return mapUsageError(error)
+                return mapUsageError(error, renewal: renewalDate(from: credentials))
             }
         } catch {
-            return mapUsageError(error)
+            return mapUsageError(error, renewal: renewalDate(from: credentials))
         }
     }
 
@@ -73,16 +73,18 @@ struct CodexProvider: UsageProvider {
         ])
     }
 
-    private func mapUsageError(_ error: Error) -> ProviderOutcome {
+    private func mapUsageError(_ error: Error, renewal: Date? = nil) -> ProviderOutcome {
         if let failure = error as? HTTP.Failure, failure.status == 401 {
             if var local = localSnapshot() {
                 local.note = "Token expired — showing last session"
+                local.renewsAt = renewal
                 return .ok(local)
             }
             return .signedOut("Token expired — run `codex login`")
         }
         if var local = localSnapshot() {
             local.note = "API unreachable — showing last session"
+            local.renewsAt = renewal
             return .ok(local)
         }
         return .failed(error.localizedDescription, transient: HTTP.isTransient(error))
@@ -142,13 +144,14 @@ struct CodexProvider: UsageProvider {
         }
     }
 
-    private func mapRefresh(_ result: RefreshResult) -> ProviderOutcome? {
+    private func mapRefresh(_ result: RefreshResult, renewal: Date? = nil) -> ProviderOutcome? {
         switch result {
         case .ok:
             return nil
         case .signedOut(let hint):
             if var local = localSnapshot() {
                 local.note = "Token expired — showing last session"
+                local.renewsAt = renewal
                 return .ok(local)
             }
             return .signedOut(hint)
@@ -157,6 +160,7 @@ struct CodexProvider: UsageProvider {
                 local.note = transient
                     ? "API unreachable — showing last session"
                     : "Token expired — showing last session"
+                local.renewsAt = renewal
                 return .ok(local)
             }
             return .failed(reason, transient: transient)
@@ -220,7 +224,7 @@ struct CodexProvider: UsageProvider {
 
     // MARK: - API payload
 
-    private func parse(_ json: [String: Any]) -> ProviderSnapshot {
+    private func parse(_ json: [String: Any], renewal: Date? = nil) -> ProviderSnapshot {
         let limit = json.dict("rate_limit")
         var windows: [UsageWindow] = []
 
@@ -243,6 +247,7 @@ struct CodexProvider: UsageProvider {
             plan: json.string("plan_type").map(planLabel),
             account: json.string("email"),
             windows: windows,
+            renewsAt: renewal,
             source: "api"
         )
 
@@ -275,6 +280,20 @@ struct CodexProvider: UsageProvider {
             usedPercent: used,
             resetsAt: resets
         )
+    }
+
+    /// ChatGPT Plus/Pro billing day lives on the id token. The claim is often a past
+    /// period end, so walk it forward month by month to the next future anniversary.
+    private func renewalDate(from credentials: Credentials) -> Date? {
+        guard let token = credentials.idToken,
+              let claims = JWT.payload(token),
+              let auth = claims["https://api.openai.com/auth"] as? [String: Any],
+              let anchor = auth.date(
+                "chatgpt_subscription_active_until",
+                "chatgpt_subscription_active_start"
+              )
+        else { return nil }
+        return Format.nextMonthly(from: anchor)
     }
 
     private func planLabel(_ raw: String) -> String {
