@@ -318,8 +318,22 @@ enum HTTP {
     }
 
     static func postJSON(_ url: String, headers: [String: String], body: [String: Any]) async throws -> [String: Any] {
+        var headers = headers
+        if headers["Content-Type"] == nil {
+            headers["Content-Type"] = "application/json"
+        }
         let data = try JSONSerialization.data(withJSONObject: body)
         return try await requestJSON(url, method: "POST", headers: headers, body: data)
+    }
+
+    static func postForm(_ url: String, headers: [String: String], fields: [String: String]) async throws -> [String: Any] {
+        var components = URLComponents()
+        components.queryItems = fields.map { URLQueryItem(name: $0.key, value: $0.value) }
+        var headers = headers
+        if headers["Content-Type"] == nil {
+            headers["Content-Type"] = "application/x-www-form-urlencoded"
+        }
+        return try await requestJSON(url, method: "POST", headers: headers, body: components.percentEncodedQuery?.data(using: .utf8))
     }
 
     private static func requestJSON(

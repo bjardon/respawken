@@ -36,6 +36,8 @@
       menu bar rebuild from that list. Codex and Cursor stay single-source.
 - [x] **Notion AI** — rolling 6-hour + monthly usage allowance from Notion.app session;
       Notion credits balance / monthly credits window via private `/api/v3` endpoints
+- [x] **Google Antigravity** — Gemini + Claude/GPT weekly and 5-hour windows from `agy`
+      OAuth (Keychain) or the running CLI's local `/usage` server
 - [x] **App icon** — cooldown-ring + token core; `Resources/AppIcon.icon` (Icon Composer
       stack for macOS 26) + legacy `Assets.xcassets`; `build.sh` compiles `Assets.car` via
       `actool`, sets `CFBundleIconName`, and ships a full `.icns`. Bundle id bumped to
@@ -62,6 +64,8 @@
 - Notion AI uses undocumented `app.notion.com/api/v3` endpoints authenticated with the
   desktop session cookie; Notion can change them without notice. Multi-workspace accounts
   currently pick the first Business/Enterprise space Notion returns.
+- Antigravity quota is Cloud Code `v1internal` plus `agy`'s local Connect-RPC; Google can
+  change either without notice. No subscription renewal date is exposed.
 
 ## Not done yet
 
@@ -71,4 +75,3 @@
 - [ ] Make the Overview a bit more compact
 - [ ] Richer product drill-downs — Claude's unproven Opus/Sonnet/Cowork weekly
       windows, other on-demand extras
-- [ ] **Google Antigravity** — usage in the menu bar / Overview like the other providers

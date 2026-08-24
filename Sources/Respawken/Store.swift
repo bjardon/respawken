@@ -39,11 +39,11 @@ final class UsageStore: ObservableObject {
     }
 
     nonisolated static func providers(for accounts: [ClaudeAccount]) -> [any UsageProvider] {
-        accounts.map { ClaudeProvider(account: $0) } + [CodexProvider(), CursorProvider(), NotionProvider()]
+        accounts.map { ClaudeProvider(account: $0) } + [CodexProvider(), CursorProvider(), NotionProvider(), AntigravityProvider()]
     }
 
     var providerOrder: [ProviderID] {
-        claudeAccounts.map(\.providerID) + [.codex, .cursor, .notion]
+        claudeAccounts.map(\.providerID) + [.codex, .cursor, .notion, .antigravity]
     }
 
     /// Providers drawn on the menu bar icon, in panel order, capped at six.
@@ -97,7 +97,12 @@ final class UsageStore: ObservableObject {
         var next = settings
         next.claudeAccounts = accounts
         // Drop prefs for removed Claude accounts; leave hardcoded providers alone.
-        let validIDs = Set(accounts.map(\.id) + [ProviderID.codex.rawValue, ProviderID.cursor.rawValue, ProviderID.notion.rawValue])
+        let validIDs = Set(accounts.map(\.id) + [
+            ProviderID.codex.rawValue,
+            ProviderID.cursor.rawValue,
+            ProviderID.notion.rawValue,
+            ProviderID.antigravity.rawValue,
+        ])
         next.providerIconPrefs = next.providerIconPrefs.filter { validIDs.contains($0.key) }
         settings = next
         settings.save()

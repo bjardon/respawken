@@ -4,8 +4,8 @@
   <img src="docs/app-icon.png" alt="Respawken" width="168" />
 </p>
 
-A tiny macOS status bar app that shows how much Claude Code, Codex, Cursor, and Notion AI usage
-you have left, and when each limit resets.
+A tiny macOS status bar app that shows how much Claude Code, Codex, Cursor, Notion AI, and
+Antigravity usage you have left, and when each limit resets.
 
 It answers two questions at a glance:
 
@@ -16,8 +16,8 @@ Native Swift/SwiftUI, no Dock icon, ~22 MB resident, idle at 0% CPU.
 
 ![panel](docs/panel.png)
 
-The menu bar icon is stacked meters — configured Claude accounts, then Codex, Cursor, and
-Notion AI, top to bottom. Fill is utilization, colour is severity (green / amber / red). A
+The menu bar icon is stacked meters — configured Claude accounts, then Codex, Cursor,
+Notion AI, and Antigravity, top to bottom. Fill is utilization, colour is severity (green / amber / red). A
 provider that is signed out or failing renders as an empty outline, so a missing reading never
 looks like a healthy zero.
 
@@ -59,6 +59,7 @@ notification bookkeeping key in UserDefaults).
 | **Cursor** | `state.vscdb` → `cursor.com/api/usage-summary` | Reuses the bearer token Cursor.app already holds, so no browser cookie decryption. Cursor bills monthly, so "resets" is the end of the billing cycle. |
 | **Claude Code** | Per-account: default `~/.claude` → `Claude Code-credentials`; custom `CLAUDE_CONFIG_DIR` → `Claude Code-credentials-<sha256[:8]>` (or `$dir/.credentials.json`) → `api.anthropic.com/api/oauth/usage` | Multiple logins via Settings (label + config dir). Defaults: Personal on `~/.claude`, Work on `~/.claude-oxp`. Access tokens expire after ~8 hours; respawken refreshes them via `platform.claude.com/v1/oauth/token` and writes the rotated tokens back so Claude Code stays in sync. The usage endpoint returns no account email — rows use your labels. |
 | **Notion AI** | Notion.app Cookies + Keychain `Notion Safe Storage` → `app.notion.com/api/v3/getCreditRateLimitStatus` (+ `getAIUsageEligibilityV2` for credits) | Decrypts the desktop app's `token_v2` session cookie (via `/usr/bin/security`, same prompt avoidance as Claude). Tracks the rolling 6-hour and monthly AI usage allowance on Business/Enterprise, plus Notion credits balance. These are Notion's private web APIs — not the public Connection/PAT surface — and can change without notice. |
+| **Antigravity** | Running `agy` loopback, else Keychain `gemini`/`antigravity` → `cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary` | Gemini and Claude/GPT each have a weekly + 5-hour window, the same groups `/usage` shows. Prefers the CLI's local language server when `agy` is open (no CSRF, self-signed loopback). Otherwise reuses the consumer OAuth session `agy` already stored (`go-keyring-base64` blob, read via `/usr/bin/security`). Access tokens last about an hour; respawken refreshes them and writes the rotated tokens back so the CLI stays in sync. |
 
 Providers are polled every 2 minutes, concurrently, with a 12-second timeout each. The cadence
 drops to 30 seconds only while a window is still burning (**90–98%**) or a reset is within

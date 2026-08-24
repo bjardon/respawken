@@ -61,6 +61,10 @@ enum L10n {
         case "seven_day_routines": return t(.windowWeeklyRoutines)
         case "seven_day_cowork": return t(.windowWeeklyCowork)
         case "rolling": return rollingTitle(stored)
+        case "gemini-weekly": return t(.windowGeminiWeekly)
+        case "gemini-5h": return t(.windowGemini5h)
+        case "3p-weekly": return t(.windowClaudeGptWeekly)
+        case "3p-5h": return t(.windowClaudeGpt5h)
         default: return durationTitle(stored)
         }
     }
@@ -180,6 +184,10 @@ enum L10n {
         case windowRollingHours
         case windowMonthly
         case windowCredits
+        case windowGeminiWeekly
+        case windowGemini5h
+        case windowClaudeGptWeekly
+        case windowClaudeGpt5h
 
         case claudeRunLogin
         case claudeTokenLacks
@@ -313,6 +321,10 @@ enum L10n {
         .windowRollingHours: [.english: "Rolling (%dh)", .spanish: "Ventana móvil (%dh)"],
         .windowMonthly: [.english: "Monthly", .spanish: "Mensual"],
         .windowCredits: [.english: "Credits", .spanish: "Créditos"],
+        .windowGeminiWeekly: [.english: "Gemini Weekly", .spanish: "Gemini semanal"],
+        .windowGemini5h: [.english: "Gemini 5-hour", .spanish: "Gemini 5 horas"],
+        .windowClaudeGptWeekly: [.english: "Claude/GPT Weekly", .spanish: "Claude/GPT semanal"],
+        .windowClaudeGpt5h: [.english: "Claude/GPT 5-hour", .spanish: "Claude/GPT 5 horas"],
 
         .claudeRunLogin: [
             .english: "Run `claude auth login` (%@)",
@@ -376,6 +388,9 @@ enum L10n {
         "Unauthorized": "No autorizado",
         "Bad request": "Petición incorrecta",
         "local session log": "registro de sesión local",
+        "Run `agy` and sign in": "Ejecuta `agy` e inicia sesión",
+        "Token expired — run `agy` and sign in": "Token caducado — ejecuta `agy` e inicia sesión",
+        "agy": "agy",
     ]
 
     private static func rollingTitle(_ stored: String) -> String {
@@ -395,6 +410,10 @@ enum L10n {
         case "Monthly": return t(.windowMonthly)
         case "Credits": return t(.windowCredits)
         case "Rolling": return t(.windowRolling)
+        case "Gemini Weekly": return t(.windowGeminiWeekly)
+        case "Gemini 5-hour": return t(.windowGemini5h)
+        case "Claude/GPT Weekly": return t(.windowClaudeGptWeekly)
+        case "Claude/GPT 5-hour": return t(.windowClaudeGpt5h)
         default:
             if let hours = hours(from: stored) { return t(.windowRollingHours, hours) }
             if let match = unitTitle(stored) { return match }

@@ -156,6 +156,7 @@ enum IconWindowDefaults {
         case ProviderID.codex.rawValue: return "secondary"
         case ProviderID.cursor.rawValue: return "included"
         case ProviderID.notion.rawValue: return "rolling"
+        case ProviderID.antigravity.rawValue: return "gemini-5h"
         default: return "five_hour"
         }
     }
@@ -176,6 +177,13 @@ enum IconWindowDefaults {
                 ("rolling", L10n.t(.windowRolling)),
                 ("monthly", L10n.t(.windowMonthly)),
                 ("credits", L10n.t(.windowCredits)),
+            ]
+        case ProviderID.antigravity.rawValue:
+            return [
+                ("gemini-5h", L10n.t(.windowGemini5h)),
+                ("gemini-weekly", L10n.t(.windowGeminiWeekly)),
+                ("3p-5h", L10n.t(.windowClaudeGpt5h)),
+                ("3p-weekly", L10n.t(.windowClaudeGptWeekly)),
             ]
         default:
             return [

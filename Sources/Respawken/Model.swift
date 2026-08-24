@@ -3,7 +3,7 @@ import Foundation
 import SwiftUI
 
 /// Stable identity for a provider row / menu-bar meter / notification key.
-/// Codex and Cursor are fixed; Claude slots are `claude.<id>` from settings.
+/// Codex, Cursor, Notion, and Antigravity are fixed; Claude slots are `claude.<id>` from settings.
 struct ProviderID: Hashable, Identifiable, Codable, Sendable, RawRepresentable {
     let rawValue: String
 
@@ -16,6 +16,7 @@ struct ProviderID: Hashable, Identifiable, Codable, Sendable, RawRepresentable {
     static let codex = ProviderID(rawValue: "codex")
     static let cursor = ProviderID(rawValue: "cursor")
     static let notion = ProviderID(rawValue: "notion")
+    static let antigravity = ProviderID(rawValue: "antigravity")
 
     /// Built-in accent when the user hasn't set a custom colour.
     /// Claude accounts cycle a small palette so Personal / Work stay distinct.
@@ -27,6 +28,8 @@ struct ProviderID: Hashable, Identifiable, Codable, Sendable, RawRepresentable {
             return Color(red: 0.45, green: 0.60, blue: 0.95)
         case Self.notion.rawValue:
             return Color(red: 0.25, green: 0.45, blue: 0.65)
+        case Self.antigravity.rawValue:
+            return Color(red: 0.48, green: 0.80, blue: 0.22)
         default:
             let palette: [Color] = [
                 Color(red: 0.85, green: 0.47, blue: 0.30), // orange
@@ -45,6 +48,7 @@ struct ProviderID: Hashable, Identifiable, Codable, Sendable, RawRepresentable {
         case Self.codex.rawValue: return "Codex"
         case Self.cursor.rawValue: return "Cursor"
         case Self.notion.rawValue: return "Notion AI"
+        case Self.antigravity.rawValue: return "Antigravity"
         default:
             if let label = accounts.first(where: { $0.id == rawValue })?.label, !label.isEmpty {
                 return "Claude · \(label)"
@@ -59,6 +63,7 @@ struct ProviderID: Hashable, Identifiable, Codable, Sendable, RawRepresentable {
         case Self.codex.rawValue: return "Codex"
         case Self.cursor.rawValue: return "Cursor"
         case Self.notion.rawValue: return "Notion AI"
+        case Self.antigravity.rawValue: return "Antigravity"
         default:
             if let label = accounts.first(where: { $0.id == rawValue })?.label, !label.isEmpty {
                 return "Claude (\(label))"
