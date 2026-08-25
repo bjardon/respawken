@@ -153,7 +153,7 @@ struct AppSettings: Codable, Equatable, Sendable {
 enum IconWindowDefaults {
     static func windowID(for provider: ProviderID) -> String {
         switch provider.rawValue {
-        case ProviderID.codex.rawValue: return "secondary"
+        case ProviderID.codex.rawValue: return "primary"
         case ProviderID.cursor.rawValue: return "included"
         case ProviderID.notion.rawValue: return "rolling"
         case ProviderID.antigravity.rawValue: return "gemini-5h"
@@ -165,7 +165,7 @@ enum IconWindowDefaults {
     static func options(for provider: ProviderID) -> [(id: String, title: String)] {
         switch provider.rawValue {
         case ProviderID.codex.rawValue:
-            return [("primary", L10n.t(.windowSession)), ("secondary", L10n.t(.windowWeekly))]
+            return [("primary", L10n.t(.window5hour)), ("secondary", L10n.t(.windowWeekly))]
         case ProviderID.cursor.rawValue:
             return [
                 ("included", L10n.t(.windowCursorModels)),

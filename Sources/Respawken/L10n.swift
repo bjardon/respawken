@@ -71,6 +71,9 @@ enum L10n {
 
     /// Signed-out hints, notes, and HTTP copy that providers emit in English.
     static func display(_ text: String) -> String {
+        if text.contains(" · ") {
+            return text.components(separatedBy: " · ").map(display).joined(separator: " · ")
+        }
         if language == .english { return text }
         if let mapped = messages[text] { return mapped }
 
@@ -93,6 +96,9 @@ enum L10n {
         }
         if text.hasPrefix("Credits: ") {
             return t(.creditsPrefix) + String(text.dropFirst("Credits: ".count))
+        }
+        if text.hasPrefix("Resets available: ") {
+            return t(.resetsAvailablePrefix) + String(text.dropFirst("Resets available: ".count))
         }
         if text.hasPrefix("AI usage allowance not tracked for ") {
             return notionAllowance(text)
@@ -194,6 +200,7 @@ enum L10n {
         case claudeExtraUsagePrefix
         case creditsLeftPrefix
         case creditsPrefix
+        case resetsAvailablePrefix
         case notionAllowanceNotTracked
         case sourceLocalSessionLog
 
@@ -337,6 +344,7 @@ enum L10n {
         .claudeExtraUsagePrefix: [.english: "Extra usage: ", .spanish: "Uso extra: "],
         .creditsLeftPrefix: [.english: "Credits left: ", .spanish: "Créditos restantes: "],
         .creditsPrefix: [.english: "Credits: ", .spanish: "Créditos: "],
+        .resetsAvailablePrefix: [.english: "Resets available: ", .spanish: "Reinicios disponibles: "],
         .notionAllowanceNotTracked: [
             .english: "AI usage allowance not tracked for %@ (%@)",
             .spanish: "El uso de IA de %@ (%@) no se rastrea",

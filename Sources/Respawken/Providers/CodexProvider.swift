@@ -52,12 +52,12 @@ struct CodexProvider: UsageProvider {
         }
 
         do {
-            return .ok(parse(try await fetchUsage(token: credentials.accessToken), renewal: renewalDate(from: credentials)))
+            return .ok(parse(try await fetchUsage(credentials), renewal: renewalDate(from: credentials)))
         } catch let failure as HTTP.Failure where failure.status == 401 {
             // Token may have been revoked mid-flight; try one refresh before falling back.
             if let outcome = mapRefresh(await refresh(&credentials), renewal: renewalDate(from: credentials)) { return outcome }
             do {
-                return .ok(parse(try await fetchUsage(token: credentials.accessToken), renewal: renewalDate(from: credentials)))
+                return .ok(parse(try await fetchUsage(credentials), renewal: renewalDate(from: credentials)))
             } catch {
                 return mapUsageError(error, renewal: renewalDate(from: credentials))
             }
@@ -66,11 +66,15 @@ struct CodexProvider: UsageProvider {
         }
     }
 
-    private func fetchUsage(token: String) async throws -> [String: Any] {
-        try await HTTP.getJSON(Self.usageURL, headers: [
-            "Authorization": "Bearer \(token)",
+    private func fetchUsage(_ credentials: Credentials) async throws -> [String: Any] {
+        var headers = [
+            "Authorization": "Bearer \(credentials.accessToken)",
             "Accept": "application/json",
-        ])
+        ]
+        if let accountID = credentials.accountID, !accountID.isEmpty {
+            headers["ChatGPT-Account-Id"] = accountID
+        }
+        return try await HTTP.getJSON(Self.usageURL, headers: headers)
     }
 
     private func mapUsageError(_ error: Error, renewal: Date? = nil) -> ProviderOutcome {
@@ -235,7 +239,8 @@ struct CodexProvider: UsageProvider {
             windows.append(w)
         }
         for (index, extra) in (json["additional_rate_limits"] as? [[String: Any]] ?? []).enumerated() {
-            if var w = window(id: "extra-\(index)", from: extra) {
+            let node = extra.dict("rate_limit")?.dict("primary_window") ?? extra
+            if var w = window(id: "extra-\(index)", from: node) {
                 if let name = extra.string("name") ?? extra.string("limit_name") {
                     w = UsageWindow(id: w.id, title: name, usedPercent: w.usedPercent, resetsAt: w.resetsAt)
                 }
@@ -250,20 +255,27 @@ struct CodexProvider: UsageProvider {
             renewsAt: renewal,
             source: "api"
         )
-
-        if let credits = json.dict("credits"), credits["has_credits"] as? Bool == true {
-            let balance = credits.string("balance") ?? "0"
-            snapshot.note = "Credits: \(balance)"
-        }
+        snapshot.note = note(credits: json.dict("credits"), resets: json.dict("rate_limit_reset_credits"))
         return snapshot
+    }
+
+    private func note(credits: [String: Any]?, resets: [String: Any]?) -> String? {
+        var parts: [String] = []
+        if credits?["has_credits"] as? Bool == true {
+            parts.append("Credits: \(credits?.string("balance") ?? "0")")
+        }
+        if let count = resets?.number("available_count", "applicable_available_count"), count > 0 {
+            parts.append("Resets available: \(Int(count))")
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
     private func window(id: String, from dict: [String: Any]) -> UsageWindow? {
         guard let used = dict.number("used_percent", "usedPercent") else { return nil }
 
-        // The API reports seconds; the session log reports minutes.
+        // The API reports seconds; session logs report minutes; app-server uses windowDurationMins.
         let seconds: Int
-        if let minutes = dict.number("window_minutes") {
+        if let minutes = dict.number("window_minutes", "windowDurationMins") {
             seconds = Int(minutes * 60)
         } else {
             seconds = Int(dict.number("limit_window_seconds") ?? 0)
@@ -332,20 +344,26 @@ struct CodexProvider: UsageProvider {
     }
 
     private func newestSessionLog() -> String? {
-        let root = home.appendingPathComponent("sessions")
         let fm = FileManager.default
-        guard let walker = fm.enumerator(
-            at: root,
-            includingPropertiesForKeys: [.contentModificationDateKey],
-            options: [.skipsHiddenFiles]
-        ) else { return nil }
+        let roots = [
+            home.appendingPathComponent("sessions"),
+            home.appendingPathComponent("archived_sessions"),
+        ]
 
         var newest: (path: String, date: Date)?
-        for case let url as URL in walker where url.pathExtension == "jsonl" {
-            let modified = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?
-                .contentModificationDate ?? .distantPast
-            if newest == nil || modified > newest!.date {
-                newest = (url.path, modified)
+        for root in roots {
+            guard let walker = fm.enumerator(
+                at: root,
+                includingPropertiesForKeys: [.contentModificationDateKey],
+                options: [.skipsHiddenFiles]
+            ) else { continue }
+
+            for case let url as URL in walker where url.pathExtension == "jsonl" {
+                let modified = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?
+                    .contentModificationDate ?? .distantPast
+                if newest == nil || modified > newest!.date {
+                    newest = (url.path, modified)
+                }
             }
         }
         return newest?.path

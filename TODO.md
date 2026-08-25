@@ -8,8 +8,10 @@
       (the window that drives the menu bar); click a row for that product's full
       windows. Claude stacks every account on one product page. Reopens on Overview.
       Hover highlights Overview rows. Tabs were tried and dropped.
-- [x] **Codex** — live usage, plan, weekly window, reset countdown
-- [x] **Codex** — offline fallback to the last session log when the API is unreachable
+- [x] **Codex** — live usage, plan, 5-hour session + weekly windows, reset countdown;
+      banked reset credits from `rate_limit_reset_credits` when `available_count` > 0
+- [x] **Codex** — offline fallback to the newest session log (`sessions` or
+      `archived_sessions`) when the API is unreachable
 - [x] **Codex** — OAuth auto-refresh — expired access tokens refresh without re-login
 - [x] **Codex** — 401 / expired-token fallback note (not the generic "API unreachable")
 - [x] **Cursor** — live usage, plan, billing-cycle reset, on-demand spend
