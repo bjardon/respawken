@@ -246,7 +246,7 @@ private struct OverviewRow: View {
 
             case .ok:
                 if let window = iconWindow {
-                    Text(L10n.windowTitle(id: window.id, stored: window.title))
+                    Text(windowCaption(window))
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)
                     Meter(fraction: window.clamped / 100, level: UsageLevel(percent: window.clamped))
@@ -275,8 +275,15 @@ private struct OverviewRow: View {
     }
 
     private var iconWindow: UsageWindow? {
-        guard let windows = result?.snapshot?.windows, !windows.isEmpty else { return nil }
-        return windows.first(where: { $0.id == windowID }) ?? windows.first
+        result?.iconWindow(preferredID: windowID)
+    }
+
+    private func windowCaption(_ window: UsageWindow) -> String {
+        let name = L10n.windowTitle(id: window.id, stored: window.title)
+        if windowID == IconWindowDefaults.nowBurning {
+            return L10n.t(.nowBurningWindow, name)
+        }
+        return name
     }
 
     private func message(_ text: String, color: some ShapeStyle) -> some View {

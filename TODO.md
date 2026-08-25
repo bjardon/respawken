@@ -55,6 +55,15 @@
       for the paid plan (not the usage-window reset). Claude from
       `subscription_created_at`, Codex from the ChatGPT id-token period, Cursor
       and Notion from their billing-cycle end.
+- [x] **Claude usage credits** — extra budget from `/api/oauth/usage` (`spend`,
+      with legacy `extra_usage` as fallback). Meter + `$used / $limit` on the
+      product page when the org has enabled it.
+- [x] **Now burning** — Settings option (default for Claude and Notion) that
+      follows included usage, then credits once session/weekly or rolling/monthly
+      hits 100%. Overview reads `Now burning: <window>`. Session/Rolling stay
+      pins. Cursor is not on this path.
+- [x] **Cursor on-demand** — when enabled, a third window plus `On-demand: $0 / $10`
+      (cents from `individualUsage.onDemand`). Static pick in Settings.
 
 ## Known gaps
 
@@ -68,6 +77,9 @@
   currently pick the first Business/Enterprise space Notion returns.
 - Antigravity quota is Cloud Code `v1internal` plus `agy`'s local Connect-RPC; Google can
   change either without notice. No subscription renewal date is exposed.
+- Cursor Now burning is parked. Other Models is a sibling included pool (labs / open
+  weights), not a step after Cursor Models. On-demand is the fallback for both, and
+  a linear walk would stall on unused Other Models at 0%. Pin the window in Settings.
 
 ## Not done yet
 
@@ -76,4 +88,4 @@
 - [ ] Hover states on the other panel controls (back, gear, refresh, Quit)
 - [ ] Make the Overview a bit more compact
 - [ ] Richer product drill-downs — Claude's unproven Opus/Sonnet/Cowork weekly
-      windows, other on-demand extras
+      windows

@@ -62,10 +62,13 @@ struct CursorProvider: UsageProvider {
             windows.append(UsageWindow(id: "api", title: "Other Models",
                                        usedPercent: api, resetsAt: resets))
         }
-        if let onDemand = individual?.dict("onDemand"), onDemand["enabled"] as? Bool == true,
+
+        var onDemandNote: String?
+        if let onDemand = individual?.dict("onDemand"), isTrue(onDemand["enabled"]),
            let used = onDemand.number("used"), let limit = onDemand.number("limit"), limit > 0 {
             windows.append(UsageWindow(id: "onDemand", title: "On-demand",
                                        usedPercent: used / limit * 100, resetsAt: resets))
+            onDemandNote = "On-demand: \(formatCents(used)) / \(formatCents(limit))"
         }
 
         var snapshot = ProviderSnapshot(
@@ -76,22 +79,31 @@ struct CursorProvider: UsageProvider {
             source: "api"
         )
 
-        // Percentages gate the plan; only annotate when a bar is actually exhausted.
         let auto = plan?.number("autoPercentUsed") ?? 0
         let api = plan?.number("apiPercentUsed") ?? 0
-        let onDemand = individual?.dict("onDemand")
-        let onDemandSpend = onDemand.flatMap { $0.number("used") } ?? 0
-        let onDemandEnabled = onDemand?["enabled"] as? Bool == true
         if auto >= 100, api >= 100 {
-            if onDemandEnabled, onDemandSpend > 0 {
-                snapshot.note = "Included usage spent — running on on-demand"
-            } else {
-                snapshot.note = "Included usage spent"
-            }
+            snapshot.note = onDemandNote ?? "Included usage spent"
         } else if auto >= 100 {
             snapshot.note = "Cursor Models spent — drawing from Other Models"
+        } else {
+            snapshot.note = onDemandNote
         }
         return snapshot
+    }
+
+    private func isTrue(_ value: Any?) -> Bool {
+        if let b = value as? Bool { return b }
+        if let n = value as? NSNumber { return n.boolValue }
+        return false
+    }
+
+    /// Cursor reports on-demand used/limit in cents.
+    private func formatCents(_ cents: Double) -> String {
+        let dollars = cents / 100
+        if dollars == dollars.rounded() {
+            return String(format: "$%.0f", dollars)
+        }
+        return String(format: "$%.2f", dollars)
     }
 
     private func planLabel(_ raw: String) -> String {

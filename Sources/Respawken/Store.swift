@@ -75,10 +75,14 @@ final class UsageStore: ObservableObject {
 
     /// Window choices for the icon picker: live titles when available, else static defaults.
     func iconWindowOptions(for provider: ProviderID) -> [(id: String, title: String)] {
-        if let windows = results[provider]?.snapshot?.windows, !windows.isEmpty {
-            return windows.map { ($0.id, L10n.windowTitle(id: $0.id, stored: $0.title)) }
+        let windows: [(id: String, title: String)]
+        if let live = results[provider]?.snapshot?.windows, !live.isEmpty {
+            windows = live.map { ($0.id, L10n.windowTitle(id: $0.id, stored: $0.title)) }
+        } else {
+            windows = IconWindowDefaults.options(for: provider)
         }
-        return IconWindowDefaults.options(for: provider)
+        guard IconWindowDefaults.followsConsumption(provider) else { return windows }
+        return [(IconWindowDefaults.nowBurning, L10n.t(.windowNowBurning))] + windows
     }
 
     /// The number worth putting in the menu bar: the closest limit to being hit.

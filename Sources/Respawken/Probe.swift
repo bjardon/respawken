@@ -26,10 +26,14 @@ enum Probe {
                     let meta = [snapshot.plan, snapshot.account, snapshot.source]
                         .compactMap { $0 }.joined(separator: " · ")
                     print("  \(meta)")
+                    let result = ProviderResult(provider: provider.id, outcome: outcome, fetchedAt: Date())
+                    let iconID = AppSettings.load().iconWindowID(for: provider.id)
+                    let icon = result.iconWindow(preferredID: iconID)
                     for window in snapshot.windows {
+                        let mark = window.id == icon?.id ? "  [icon]" : ""
                         let suffix = window.resetsAt.map { " resets in \(Format.countdown(to: $0))" }
                             ?? (window.isActive ? "" : " (not started)")
-                        print("  - \(window.title): \(Format.percent(window.clamped))\(suffix)")
+                        print("  - \(window.title): \(Format.percent(window.clamped))\(suffix)\(mark)")
                     }
                     if let renews = snapshot.renewsAt {
                         print("  renews \(Format.billingDate(renews))")

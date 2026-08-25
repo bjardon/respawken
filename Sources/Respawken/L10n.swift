@@ -60,6 +60,8 @@ enum L10n {
         case "seven_day_sonnet": return t(.windowWeeklySonnet)
         case "seven_day_routines": return t(.windowWeeklyRoutines)
         case "seven_day_cowork": return t(.windowWeeklyCowork)
+        case "extra_usage": return t(.windowUsageCredits)
+        case "now_burning": return t(.windowNowBurning)
         case "rolling": return rollingTitle(stored)
         case "gemini-weekly": return t(.windowGeminiWeekly)
         case "gemini-5h": return t(.windowGemini5h)
@@ -88,8 +90,14 @@ enum L10n {
             )
             return t(.claudeTokenLacks, scope)
         }
+        if text.hasPrefix("Usage credits: ") {
+            return t(.claudeExtraUsagePrefix) + String(text.dropFirst("Usage credits: ".count))
+        }
         if text.hasPrefix("Extra usage: ") {
             return t(.claudeExtraUsagePrefix) + String(text.dropFirst("Extra usage: ".count))
+        }
+        if text.hasPrefix("On-demand: ") {
+            return t(.cursorOnDemandPrefix) + String(text.dropFirst("On-demand: ".count))
         }
         if text.hasPrefix("Credits left: ") {
             return t(.creditsLeftPrefix) + String(text.dropFirst("Credits left: ".count))
@@ -194,10 +202,14 @@ enum L10n {
         case windowGemini5h
         case windowClaudeGptWeekly
         case windowClaudeGpt5h
+        case windowUsageCredits
+        case windowNowBurning
+        case nowBurningWindow
 
         case claudeRunLogin
         case claudeTokenLacks
         case claudeExtraUsagePrefix
+        case cursorOnDemandPrefix
         case creditsLeftPrefix
         case creditsPrefix
         case resetsAvailablePrefix
@@ -332,6 +344,9 @@ enum L10n {
         .windowGemini5h: [.english: "Gemini 5-hour", .spanish: "Gemini 5 horas"],
         .windowClaudeGptWeekly: [.english: "Claude/GPT Weekly", .spanish: "Claude/GPT semanal"],
         .windowClaudeGpt5h: [.english: "Claude/GPT 5-hour", .spanish: "Claude/GPT 5 horas"],
+        .windowUsageCredits: [.english: "Usage credits", .spanish: "Créditos de uso"],
+        .windowNowBurning: [.english: "Now burning", .spanish: "En consumo"],
+        .nowBurningWindow: [.english: "Now burning: %@", .spanish: "En consumo: %@"],
 
         .claudeRunLogin: [
             .english: "Run `claude auth login` (%@)",
@@ -341,7 +356,8 @@ enum L10n {
             .english: "Token lacks %@ — re-run `claude auth login`",
             .spanish: "El token no tiene %@ — vuelve a ejecutar `claude auth login`",
         ],
-        .claudeExtraUsagePrefix: [.english: "Extra usage: ", .spanish: "Uso extra: "],
+        .claudeExtraUsagePrefix: [.english: "Usage credits: ", .spanish: "Créditos de uso: "],
+        .cursorOnDemandPrefix: [.english: "On-demand: ", .spanish: "Bajo demanda: "],
         .creditsLeftPrefix: [.english: "Credits left: ", .spanish: "Créditos restantes: "],
         .creditsPrefix: [.english: "Credits: ", .spanish: "Créditos: "],
         .resetsAvailablePrefix: [.english: "Resets available: ", .spanish: "Reinicios disponibles: "],
@@ -422,6 +438,7 @@ enum L10n {
         case "Gemini 5-hour": return t(.windowGemini5h)
         case "Claude/GPT Weekly": return t(.windowClaudeGptWeekly)
         case "Claude/GPT 5-hour": return t(.windowClaudeGpt5h)
+        case "Usage credits", "Extra usage": return t(.windowUsageCredits)
         default:
             if let hours = hours(from: stored) { return t(.windowRollingHours, hours) }
             if let match = unitTitle(stored) { return match }

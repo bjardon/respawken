@@ -364,27 +364,130 @@ struct ClaudeProvider: UsageProvider {
             ))
         }
 
+        var renewsAt: Date?
+        if let created = profile?.dict("organization")?.date("subscription_created_at") {
+            renewsAt = Format.nextMonthly(from: created)
+        }
+
+        // Anthropic's current name is "usage credits" (older docs said Extra usage).
+        // Same payload on Team and Pro; only render when the org actually enabled it.
+        var extraNote: String?
+        if let extra = extraUsage(from: json) {
+            if let window = extra.window {
+                windows.append(window)
+            }
+            extraNote = extra.note
+        }
+
         var snapshot = ProviderSnapshot(
             plan: planLabel(credentials),
             account: json.dict("account")?.string("email")
                 ?? json.string("email")
                 ?? account.label,
             windows: windows,
+            renewsAt: renewsAt,
             source: "api"
         )
-
-        if let created = profile?.dict("organization")?.date("subscription_created_at") {
-            snapshot.renewsAt = Format.nextMonthly(from: created)
-        }
-
-        if let extra = json.dict("extra_usage"), let spend = extra.number("spend", "used") {
-            let limit = extra.number("limit").map { String(format: " / $%.0f", $0) } ?? ""
-            snapshot.note = String(format: "Extra usage: $%.2f", spend) + limit
-        }
+        snapshot.note = extraNote
         if windows.isEmpty {
-            snapshot.note = "No limit windows reported"
+            snapshot.note = extraNote ?? "No limit windows reported"
         }
         return snapshot
+    }
+
+    private struct ExtraUsageReading {
+        var window: UsageWindow?
+        var note: String?
+    }
+
+    private func extraUsage(from json: [String: Any]) -> ExtraUsageReading? {
+        let spend = json.dict("spend")
+        let extra = json.dict("extra_usage")
+        guard isTrue(spend, "enabled") || isTrue(extra, "is_enabled", "isEnabled") else { return nil }
+
+        let usedMoney = spend.flatMap { moneyAmount($0["used"]) }
+        let limitMoney = spend.flatMap { moneyAmount($0["limit"]) }
+        let currency = usedMoney?.currency ?? limitMoney?.currency
+            ?? extra?.string("currency")
+            ?? "USD"
+
+        let used: Double?
+        let limit: Double?
+        if let usedMoney {
+            used = usedMoney.amount
+            limit = limitMoney?.amount
+        } else if let extra {
+            let scale = pow(10, extra.number("decimal_places") ?? 2)
+            used = extra.number("used_credits", "usedCredits").map { $0 / scale }
+            limit = extra.number("monthly_limit", "monthlyLimit").map { $0 / scale }
+        } else {
+            used = nil
+            limit = nil
+        }
+
+        let percent = spend?.number("percent", "utilization")
+            ?? extra?.number("utilization")
+            ?? {
+                guard let used, let limit, limit > 0 else { return nil }
+                return used / limit * 100
+            }()
+
+        // Dollars live in the note so the meter can stay a percent bar. Skip a reset
+        // countdown — the pool follows the billing date already shown as Renews.
+        let note: String?
+        if let used, let limit {
+            note = "Usage credits: \(formatMoney(used, currency: currency)) / \(formatMoney(limit, currency: currency))"
+        } else if let used {
+            note = "Usage credits: \(formatMoney(used, currency: currency))"
+        } else {
+            note = nil
+        }
+
+        let window: UsageWindow?
+        if let limit, limit > 0 {
+            window = UsageWindow(
+                id: "extra_usage",
+                title: "Usage credits",
+                usedPercent: percent ?? 0,
+                resetsAt: nil,
+                isActive: true
+            )
+        } else {
+            window = nil
+        }
+        guard window != nil || note != nil else { return nil }
+        return ExtraUsageReading(window: window, note: note)
+    }
+
+    private func isTrue(_ dict: [String: Any]?, _ keys: String...) -> Bool {
+        guard let dict else { return false }
+        for key in keys {
+            if dict[key] == nil { continue }
+            if let b = dict[key] as? Bool { return b }
+            if let n = dict[key] as? NSNumber { return n.boolValue }
+        }
+        return false
+    }
+
+    private func moneyAmount(_ value: Any?) -> (amount: Double, currency: String)? {
+        guard let dict = value as? [String: Any],
+              let minor = dict.number("amount_minor"), minor >= 0,
+              let exponent = dict.number("exponent"), exponent >= 0
+        else { return nil }
+        return (minor / pow(10, exponent), dict.string("currency") ?? "USD")
+    }
+
+    private func formatMoney(_ amount: Double, currency: String) -> String {
+        let symbol: String
+        switch currency.uppercased() {
+        case "EUR": symbol = "€"
+        case "GBP": symbol = "£"
+        default: symbol = "$"
+        }
+        if amount == amount.rounded() {
+            return String(format: "%@%.0f", symbol, amount)
+        }
+        return String(format: "%@%.2f", symbol, amount)
     }
 
     private func planLabel(_ credentials: Credentials) -> String? {

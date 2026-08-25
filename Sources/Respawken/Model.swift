@@ -158,15 +158,21 @@ struct ProviderResult {
         snapshot?.windows.map(\.clamped).max()
     }
 
+    /// Window that drives the menu bar meter (and Overview row).
+    /// `nowBurning` follows included → overflow; any other pick is pinned.
+    func iconWindow(preferredID: String) -> UsageWindow? {
+        guard let windows = snapshot?.windows, !windows.isEmpty else { return nil }
+        let id = IconWindowDefaults.resolved(preferred: preferredID, provider: provider, windows: windows)
+        return windows.first(where: { $0.id == id })
+            ?? windows.first(where: { $0.id == preferredID })
+            ?? windows.first
+    }
+
     /// Utilization for the window that drives the menu bar meter.
     /// Prefers `windowID`, then falls back through the remaining windows so a missing
     /// optional limit (e.g. unused Opus weekly) doesn't blank a healthy provider.
     func iconPercent(windowID: String) -> Double? {
-        guard let windows = snapshot?.windows, !windows.isEmpty else { return nil }
-        if let match = windows.first(where: { $0.id == windowID }) {
-            return match.clamped
-        }
-        return windows.first?.clamped
+        iconWindow(preferredID: windowID)?.clamped
     }
 }
 
