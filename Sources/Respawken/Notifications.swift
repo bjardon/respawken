@@ -2,7 +2,8 @@ import AppKit
 import Foundation
 import UserNotifications
 
-/// Fires macOS Notification Center alerts when a usage window nears exhaustion or resets.
+/// Fires macOS Notification Center alerts when a usage window nears exhaustion,
+/// is on track to empty before reset, or resets.
 @MainActor
 final class UsageNotifier {
     static let shared = UsageNotifier()
@@ -12,6 +13,7 @@ final class UsageNotifier {
     private let center = UNUserNotificationCenter.current()
     private let defaults = UserDefaults.standard
     private let firedKey = "respawken.notifiedExhaustionCycles"
+    private let paceFiredKey = "respawken.notifiedPaceCycles"
 
     private var authorized = false
     private var didRequestAuth = false
@@ -82,6 +84,7 @@ final class UsageNotifier {
         }
 
         evaluateExhaustion(currentCycles)
+        evaluatePace(currentCycles)
         syncResetNotifications(desired: desiredResets)
     }
 
@@ -110,6 +113,33 @@ final class UsageNotifier {
         }
 
         defaults.set(Array(fired), forKey: firedKey)
+    }
+
+    // MARK: - Pace
+
+    private func evaluatePace(
+        _ currentCycles: [String: (percent: Double, name: String, window: UsageWindow)]
+    ) {
+        var fired = Set((defaults.stringArray(forKey: paceFiredKey) ?? []).map(Self.canonicalCycleKey))
+
+        // Stay silenced for the rest of the cycle. Drop when the window vanishes
+        // or usage falls far enough that this looks like a real reset.
+        fired = fired.filter { key in
+            guard let entry = currentCycles[key] else { return false }
+            return entry.percent >= 12
+        }
+
+        for (key, entry) in currentCycles {
+            guard let empty = entry.window.emptiesAt(), !fired.contains(key) else { continue }
+            fired.insert(key)
+            deliver(
+                id: "pace.\(key)",
+                title: L10n.t(.notifyPaceTitle),
+                body: paceBody(name: entry.name, window: entry.window, empty: empty)
+            )
+        }
+
+        defaults.set(Array(fired), forKey: paceFiredKey)
     }
 
     private func cycleKey(provider: ProviderID, window: UsageWindow) -> String {
@@ -227,5 +257,15 @@ final class UsageNotifier {
     private func resetBody(name: String, window: UsageWindow) -> String {
         let title = L10n.windowTitle(id: window.id, stored: window.title)
         return L10n.t(.notifyResetBody, name, L10n.notificationWindowPhrase(title))
+    }
+
+    private func paceBody(name: String, window: UsageWindow, empty: Date) -> String {
+        let title = L10n.windowTitle(id: window.id, stored: window.title)
+        return L10n.t(
+            .notifyPaceBody,
+            name,
+            L10n.notificationWindowPhrase(title),
+            Format.countdown(to: empty)
+        )
     }
 }

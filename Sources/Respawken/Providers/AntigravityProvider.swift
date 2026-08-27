@@ -416,7 +416,8 @@ struct AntigravityProvider: UsageProvider {
                     id: id,
                     title: "\(family) \(Self.cadenceName(bucket))",
                     usedPercent: (1 - remaining) * 100,
-                    resetsAt: Self.parseDate(bucket.string("resetTime")) ?? bucket.date("resetTime")
+                    resetsAt: Self.parseDate(bucket.string("resetTime")) ?? bucket.date("resetTime"),
+                    duration: Self.duration(for: bucket)
                 ))
             }
         }
@@ -442,6 +443,14 @@ struct AntigravityProvider: UsageProvider {
         case .session: return "5-hour"
         case .weekly: return "Weekly"
         case .other: return bucket.string("displayName") ?? "Usage"
+        }
+    }
+
+    private static func duration(for bucket: [String: Any]) -> TimeInterval? {
+        switch bucketKind(bucket) {
+        case .session: return 5 * 3600
+        case .weekly: return 7 * 86_400
+        case .other: return nil
         }
     }
 

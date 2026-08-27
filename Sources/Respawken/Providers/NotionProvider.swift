@@ -9,7 +9,7 @@ import SQLite3
 /// they live on the private `app.notion.com/api/v3` endpoints that back
 /// Settings → Notion AI → Usage and the credits dashboard.
 ///
-/// Allowance applies on Business / Enterprise only (6-hour rolling + monthly
+/// Allowance applies on Business / Enterprise only (fixed 6-hour + monthly
 /// billing window). Credits meter Custom Agents / Workers / overage separately.
 struct NotionProvider: UsageProvider {
     let id = ProviderID.notion
@@ -248,29 +248,37 @@ struct NotionProvider: UsageProvider {
             } else {
                 resets = nil
             }
-            let label: String
+            let hours: Int
             if let token = window.string("window"), token.hasSuffix("h"),
-               let hours = Int(token.dropLast()) {
-                label = "Rolling (\(hours)h)"
+               let parsed = Int(token.dropLast()), parsed > 0 {
+                hours = parsed
             } else {
-                label = "Rolling"
+                hours = 6
             }
             windows.append(UsageWindow(
                 id: "rolling",
-                title: label,
+                title: Format.windowName(seconds: hours * 3600),
                 usedPercent: used / limit * 100,
-                resetsAt: resets
+                resetsAt: resets,
+                duration: TimeInterval(hours * 3600)
             ))
         }
 
         if let monthly = rate.dict("billingPeriodWindow"),
            let used = monthly.number("used"),
            let limit = monthly.number("limit"), limit > 0 {
+            let end = monthly.date("periodEndMs")
+            let start = monthly.date("periodStartMs")
+            let duration: TimeInterval? = {
+                if let end, let start, end > start { return end.timeIntervalSince(start) }
+                return end.map(Format.monthlyCycleLength(ending:))
+            }()
             windows.append(UsageWindow(
                 id: "monthly",
                 title: "Monthly",
                 usedPercent: used / limit * 100,
-                resetsAt: monthly.date("periodEndMs")
+                resetsAt: end,
+                duration: duration
             ))
         }
 
@@ -284,12 +292,19 @@ struct NotionProvider: UsageProvider {
             if let allocated = premium?.dict("perSource")?.dict("monthlyAllocated"),
                let used = allocated.number("usageTotal"),
                let limit = allocated.number("limit"), limit > 0 {
-                let resets = rate.dict("billingPeriodWindow")?.date("periodEndMs")
+                let period = rate.dict("billingPeriodWindow")
+                let end = period?.date("periodEndMs")
+                let start = period?.date("periodStartMs")
+                let duration: TimeInterval? = {
+                    if let end, let start, end > start { return end.timeIntervalSince(start) }
+                    return end.map(Format.monthlyCycleLength(ending:))
+                }()
                 windows.append(UsageWindow(
                     id: "credits",
                     title: "Credits",
                     usedPercent: used / limit * 100,
-                    resetsAt: resets
+                    resetsAt: end,
+                    duration: duration
                 ))
             }
 

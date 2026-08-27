@@ -62,7 +62,7 @@ enum L10n {
         case "seven_day_cowork": return t(.windowWeeklyCowork)
         case "extra_usage": return t(.windowUsageCredits)
         case "now_burning": return t(.windowNowBurning)
-        case "rolling": return rollingTitle(stored)
+        case "rolling": return durationTitle(stored)
         case "gemini-weekly": return t(.windowGeminiWeekly)
         case "gemini-5h": return t(.windowGemini5h)
         case "3p-weekly": return t(.windowClaudeGptWeekly)
@@ -173,6 +173,9 @@ enum L10n {
         case checking
         case noUsageReported
         case resetsIn
+        case emptiesIn
+        case belowPace
+        case onPace
         case renewsOn
         case notStarted
         case now
@@ -194,8 +197,6 @@ enum L10n {
         case windowCursorModels
         case windowOtherModels
         case windowOnDemand
-        case windowRolling
-        case windowRollingHours
         case windowMonthly
         case windowCredits
         case windowGeminiWeekly
@@ -223,6 +224,8 @@ enum L10n {
         case notifyExhaustionBody
         case notifyResetBody
         case notifySharedResetBody
+        case notifyPaceTitle
+        case notifyPaceBody
     }
 
     // MARK: - Catalog
@@ -315,6 +318,9 @@ enum L10n {
         .checking: [.english: "Checking…", .spanish: "Comprobando…"],
         .noUsageReported: [.english: "No usage reported", .spanish: "Sin datos de uso"],
         .resetsIn: [.english: "resets in %@", .spanish: "se reinicia en %@"],
+        .emptiesIn: [.english: "empties in %@", .spanish: "se agota en %@"],
+        .belowPace: [.english: "below pace", .spanish: "ritmo bajo"],
+        .onPace: [.english: "on pace", .spanish: "a ritmo"],
         .renewsOn: [.english: "Renews: %@", .spanish: "Se renueva: %@"],
         .notStarted: [.english: "not started", .spanish: "sin empezar"],
         .now: [.english: "now", .spanish: "ahora"],
@@ -336,8 +342,6 @@ enum L10n {
         .windowCursorModels: [.english: "Cursor Models", .spanish: "Modelos Cursor"],
         .windowOtherModels: [.english: "Other Models", .spanish: "Otros modelos"],
         .windowOnDemand: [.english: "On-demand", .spanish: "Bajo demanda"],
-        .windowRolling: [.english: "Rolling", .spanish: "Ventana móvil"],
-        .windowRollingHours: [.english: "Rolling (%dh)", .spanish: "Ventana móvil (%dh)"],
         .windowMonthly: [.english: "Monthly", .spanish: "Mensual"],
         .windowCredits: [.english: "Credits", .spanish: "Créditos"],
         .windowGeminiWeekly: [.english: "Gemini Weekly", .spanish: "Gemini semanal"],
@@ -386,6 +390,11 @@ enum L10n {
             .english: "%@’s limits just reset",
             .spanish: "Los límites de %@ se acaban de reiniciar",
         ],
+        .notifyPaceTitle: [.english: "⏳ Ahead of pace", .spanish: "⏳ Ritmo alto"],
+        .notifyPaceBody: [
+            .english: "%1$@’s %2$@ is on track to empty in %3$@",
+            .spanish: "%1$@ va camino de agotar su %2$@ en %3$@",
+        ],
     ]
 
     private static let messages: [String: String] = [
@@ -417,13 +426,6 @@ enum L10n {
         "agy": "agy",
     ]
 
-    private static func rollingTitle(_ stored: String) -> String {
-        if let hours = hours(from: stored) {
-            return t(.windowRollingHours, hours)
-        }
-        return t(.windowRolling)
-    }
-
     private static func durationTitle(_ stored: String) -> String {
         switch stored {
         case "Session": return t(.windowSession)
@@ -433,22 +435,15 @@ enum L10n {
         case "Usage": return t(.windowUsage)
         case "Monthly": return t(.windowMonthly)
         case "Credits": return t(.windowCredits)
-        case "Rolling": return t(.windowRolling)
         case "Gemini Weekly": return t(.windowGeminiWeekly)
         case "Gemini 5-hour": return t(.windowGemini5h)
         case "Claude/GPT Weekly": return t(.windowClaudeGptWeekly)
         case "Claude/GPT 5-hour": return t(.windowClaudeGpt5h)
         case "Usage credits", "Extra usage": return t(.windowUsageCredits)
         default:
-            if let hours = hours(from: stored) { return t(.windowRollingHours, hours) }
             if let match = unitTitle(stored) { return match }
             return stored
         }
-    }
-
-    private static func hours(from stored: String) -> Int? {
-        guard stored.hasPrefix("Rolling ("), stored.hasSuffix("h)") else { return nil }
-        return Int(stored.dropFirst("Rolling (".count).dropLast(2))
     }
 
     private static func unitTitle(_ stored: String) -> String? {

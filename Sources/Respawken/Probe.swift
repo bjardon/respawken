@@ -31,8 +31,14 @@ enum Probe {
                     let icon = result.iconWindow(preferredID: iconID)
                     for window in snapshot.windows {
                         let mark = window.id == icon?.id ? "  [icon]" : ""
-                        let suffix = window.resetsAt.map { " resets in \(Format.countdown(to: $0))" }
+                        var suffix = window.resetsAt.map { " resets in \(Format.countdown(to: $0))" }
                             ?? (window.isActive ? "" : " (not started)")
+                        switch window.pace() {
+                        case .below: suffix += " below pace"
+                        case .on: suffix += " on pace"
+                        case .ahead(let empty): suffix += " empties in \(Format.countdown(to: empty))"
+                        case nil: break
+                        }
                         print("  - \(window.title): \(Format.percent(window.clamped))\(suffix)\(mark)")
                     }
                     if let renews = snapshot.renewsAt {

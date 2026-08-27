@@ -31,8 +31,10 @@ Defaults match Personal (`~/.claude`) and Work (`~/.claude-oxp`). Changes persis
 `~/Library/Application Support/Respawken/settings.json`.
 
 Claude and Notion default to **Now burning**: the Overview meter follows included usage,
-then credits once that cap is gone. Session / Rolling stay as pins if you pick them.
+then credits once that cap is gone. Session / 6-hour stay as pins if you pick them.
 Cursor's three windows (Cursor Models, Other Models, On-demand) are static picks.
+If the metered window has no reset time, Overview still shows `resets in …` from the
+soonest sibling window, or the plan renewal for usage credits.
 
 ## Run it
 
@@ -62,7 +64,7 @@ notification bookkeeping key in UserDefaults).
 | **Codex** | `~/.codex/auth.json` → `chatgpt.com/backend-api/wham/usage` | Access tokens expire; respawken refreshes them via `auth.openai.com/oauth/token` and writes the rotated tokens back so Codex stays in sync. Plus accounts show a 5-hour session window plus weekly; plans that only have weekly still show that one window. Falls back to the `rate_limits` block in the newest session log under `~/.codex/sessions` or `archived_sessions` when the API is unreachable or refresh fails. |
 | **Cursor** | `state.vscdb` → `cursor.com/api/usage-summary` | Reuses the bearer token Cursor.app already holds, so no browser cookie decryption. Cursor bills monthly, so "resets" is the end of the billing cycle. Cursor Models and Other Models are percent gates; on-demand (when enabled) is a dollar cap in cents. |
 | **Claude Code** | Per-account: default `~/.claude` → `Claude Code-credentials`; custom `CLAUDE_CONFIG_DIR` → `Claude Code-credentials-<sha256[:8]>` (or `$dir/.credentials.json`) → `api.anthropic.com/api/oauth/usage` | Multiple logins via Settings (label + config dir). Defaults: Personal on `~/.claude`, Work on `~/.claude-oxp`. Access tokens expire after ~8 hours; respawken refreshes them via `platform.claude.com/v1/oauth/token` and writes the rotated tokens back so Claude Code stays in sync. The usage endpoint returns no account email — rows use your labels. Team extra budget is **usage credits** (`spend`, with legacy `extra_usage` as fallback). |
-| **Notion AI** | Notion.app Cookies + Keychain `Notion Safe Storage` → `app.notion.com/api/v3/getCreditRateLimitStatus` (+ `getAIUsageEligibilityV2` for credits) | Decrypts the desktop app's `token_v2` session cookie (via `/usr/bin/security`, same prompt avoidance as Claude). Tracks the rolling 6-hour and monthly AI usage allowance on Business/Enterprise, plus Notion credits balance. These are Notion's private web APIs — not the public Connection/PAT surface — and can change without notice. |
+| **Notion AI** | Notion.app Cookies + Keychain `Notion Safe Storage` → `app.notion.com/api/v3/getCreditRateLimitStatus` (+ `getAIUsageEligibilityV2` for credits) | Decrypts the desktop app's `token_v2` session cookie (via `/usr/bin/security`, same prompt avoidance as Claude). Tracks the fixed 6-hour and monthly AI usage allowance on Business/Enterprise, plus Notion credits balance. These are Notion's private web APIs — not the public Connection/PAT surface — and can change without notice. |
 | **Antigravity** | Running `agy` loopback, else Keychain `gemini`/`antigravity` → `cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary` | Gemini and Claude/GPT each have a weekly + 5-hour window, the same groups `/usage` shows. Prefers the CLI's local language server when `agy` is open (no CSRF, self-signed loopback). Otherwise reuses the consumer OAuth session `agy` already stored (`go-keyring-base64` blob, read via `/usr/bin/security`). Access tokens last about an hour; respawken refreshes them and writes the rotated tokens back so the CLI stays in sync. |
 
 Providers are polled every 2 minutes, concurrently, with a 12-second timeout each. The cadence
@@ -73,13 +75,14 @@ being slow or signed out never blocks the others.
 ### Notifications
 
 On first launch macOS will ask for notification permission. When allowed, respawken posts
-Notification Center alerts when any active window hits **≥98%** used, and schedules an alert for
+Notification Center alerts when any active window hits **≥98%** used, when a weekly or
+monthly window is on track to empty before it resets, and schedules an alert for
 each window's reset time (the same timestamp that drives the “resets in …” countdown). Shared
 reset instants (e.g. Cursor's billing cycle) coalesce into one notification per provider.
 
 Copy is wry, not clinical: titles carry a light emoji + vibe (`🔥 Running on fumes`,
-`✨ Fresh limits`), and bodies are short sentences
-(`Claude (Personal)’s session just hit 99%`).
+`⏳ Ahead of pace` / `✨ Fresh limits`), and bodies are short sentences
+(`Claude (Personal)’s session just hit 99%`, `Codex’s weekly is on track to empty in 2d`).
 
 ### Two things worth knowing
 

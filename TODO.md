@@ -32,11 +32,12 @@
 - [x] No Keychain password prompt, on any build — Claude's secret is read via `/usr/bin/security`
 - [x] Claude OAuth auto-refresh — expired access tokens refresh overnight without re-login
 - [x] Transient failures (429) keep the last good reading instead of blanking the panel
-- [x] Native Notification Center alerts at ≥98% usage and when a window's reset time fires
+- [x] Native Notification Center alerts at ≥98% usage, when a long window is on
+      track to empty before reset, and when a window's reset time fires
 - [x] **Claude accounts settings** — gear opens a Settings window; add / rename / remove
       accounts with label + config dir; persisted to Application Support; panel and
       menu bar rebuild from that list. Codex and Cursor stay single-source.
-- [x] **Notion AI** — rolling 6-hour + monthly usage allowance from Notion.app session;
+- [x] **Notion AI** — fixed 6-hour + monthly usage allowance from Notion.app session;
       Notion credits balance / monthly credits window via private `/api/v3` endpoints
 - [x] **Google Antigravity** — Gemini + Claude/GPT weekly and 5-hour windows from `agy`
       OAuth (Keychain) or the running CLI's local `/usage` server
@@ -46,7 +47,7 @@
       `com.bjardon.respawken.app` so NC drops the blank icon cached from pre-icon builds.
       Settings → Send Test Notification (and `--test-notification`) to verify the banner icon.
 - [x] Notification copy — wry titles with one emoji each + composed sentence bodies
-      (`🔥 Running on fumes` / `✨ Fresh limits` / `👋 Still here`)
+      (`🔥 Running on fumes` / `⏳ Ahead of pace` / `✨ Fresh limits` / `👋 Still here`)
 - [x] Launch at login — first launch registers via `SMAppService`; Settings toggle can undo it;
       later launches don't re-register if it was turned off
 - [x] **Keyboard shortcut** — global hotkey toggles the panel (default ⌃⌥U);
@@ -59,9 +60,15 @@
       with legacy `extra_usage` as fallback). Meter + `$used / $limit` on the
       product page when the org has enabled it.
 - [x] **Now burning** — Settings option (default for Claude and Notion) that
-      follows included usage, then credits once session/weekly or rolling/monthly
-      hits 100%. Overview reads `Now burning: <window>`. Session/Rolling stay
+      follows included usage, then credits once session/weekly or 6-hour/monthly
+      hits 100%. Overview reads `Now burning: <window>`. Session/6-hour stay
       pins. Cursor is not on this path.
+- [x] **Burn pace** — weekly/monthly windows project cycle-average burn. One wry
+      notification per cycle when ahead (`⏳ Ahead of pace`). Session, 6-hour, and
+      Notion credits stay off this path. Panel callouts are parked.
+- [x] Overview `resets in …` falls back to the soonest sibling window, or the plan
+      renewal, when the metered window has no countdown (Now burning credits, idle
+      Notion 6-hour).
 - [x] **Cursor on-demand** — when enabled, a third window plus `On-demand: $0 / $10`
       (cents from `individualUsage.onDemand`). Static pick in Settings.
 
@@ -83,6 +90,7 @@
 
 ## Not done yet
 
+- [ ] Panel pace callouts (`below pace` / `on pace` / `empties in …`) — layout parked
 - [ ] Remember the last good reading across restarts, so the panel isn't empty on launch
 - [ ] Reorder Claude accounts in Settings (drag or up/down)
 - [ ] Hover states on the other panel controls (back, gear, refresh, Quit)

@@ -111,8 +111,107 @@ struct UsageWindow: Identifiable {
     /// False when the window exists but hasn't started — an idle Claude session window
     /// reports 0% with no reset time, which shouldn't read the same as "plenty left".
     var isActive: Bool = true
+    /// Full length of this window. Needed to project burn pace; nil when unknown.
+    var duration: TimeInterval? = nil
 
     var clamped: Double { min(max(usedPercent, 0), 100) }
+
+    func pace(now: Date = Date()) -> BurnPace.Reading? {
+        BurnPace.reading(window: self, now: now)
+    }
+
+    /// When this window hits 100% if the cycle-average burn continues.
+    /// Nil unless it's a long window that's clearly ahead of a sustainable pace.
+    func emptiesAt(now: Date = Date()) -> Date? {
+        if case .ahead(let date) = pace(now: now) { return date }
+        return nil
+    }
+}
+
+/// Cycle-average projection for weekly / monthly windows.
+/// Session and 5/6-hour windows are bursty by design — fumes covers those.
+enum BurnPace {
+    enum Reading {
+        case below
+        case on
+        case ahead(Date)
+    }
+
+    /// Skip anything shorter than ~a week (daily, session, Notion's 6-hour).
+    static let minDuration: TimeInterval = 6 * 24 * 60 * 60
+    static let minUsedPercent = 15.0
+    /// Fumes owns the last stretch.
+    static let maxUsedPercent = 98.0
+    static let minElapsedFraction = 0.10
+    static let minLeadFraction = 0.05
+    static let minLead: TimeInterval = 6 * 60 * 60
+    /// Ignore mild overshoot (e.g. 40% used vs 35% expected).
+    static let minProjectedFinal = 115.0
+    static let maxProjectedForBelow = 85.0
+
+    static func reading(window: UsageWindow, now: Date) -> Reading? {
+        guard window.id != "credits",
+              window.isActive,
+              let duration = window.duration, duration >= minDuration,
+              let resets = window.resetsAt, resets > now
+        else { return nil }
+
+        let elapsed = duration - resets.timeIntervalSince(now)
+        guard elapsed > 0 else { return nil }
+
+        let used = window.clamped
+        if used >= maxUsedPercent { return nil }
+        if let empty = emptiesAt(window: window, now: now) {
+            return .ahead(empty)
+        }
+        if used <= 0 { return .below }
+        let projectedFinal = used * duration / elapsed
+        return projectedFinal < maxProjectedForBelow ? .below : .on
+    }
+
+    static func emptiesAt(window: UsageWindow, now: Date) -> Date? {
+        guard window.isActive,
+              let duration = window.duration, duration >= minDuration,
+              let resets = window.resetsAt, resets > now
+        else { return nil }
+
+        let remainingTime = resets.timeIntervalSince(now)
+        let elapsed = duration - remainingTime
+        let used = window.clamped
+        let remainingPct = 100 - used
+
+        guard elapsed >= duration * minElapsedFraction,
+              used >= minUsedPercent,
+              used < maxUsedPercent,
+              remainingPct > 0
+        else { return nil }
+
+        let rate = used / elapsed
+        guard rate > 0 else { return nil }
+        let projectedFinal = used * duration / elapsed
+        guard projectedFinal >= minProjectedFinal else { return nil }
+        let emptyAt = now.addingTimeInterval(remainingPct / rate)
+        let lead = max(minLead, duration * minLeadFraction)
+        guard resets.timeIntervalSince(emptyAt) >= lead else { return nil }
+        return emptyAt
+    }
+
+    /// Window whose pace should sit on a shared reset line — the most urgent reading.
+    static func headline(_ windows: [UsageWindow], now: Date) -> UsageWindow? {
+        windows
+            .compactMap { window -> (UsageWindow, Int, Date)? in
+                switch window.pace(now: now) {
+                case .ahead(let empty): return (window, 2, empty)
+                case .on: return (window, 1, .distantFuture)
+                case .below: return (window, 0, .distantFuture)
+                case nil: return nil
+                }
+            }
+            .max {
+                if $0.1 != $1.1 { return $0.1 < $1.1 }
+                return $0.2 > $1.2
+            }?.0
+    }
 }
 
 struct ProviderSnapshot {
@@ -173,6 +272,19 @@ struct ProviderResult {
     /// optional limit (e.g. unused Opus weekly) doesn't blank a healthy provider.
     func iconPercent(windowID: String) -> Double? {
         iconWindow(preferredID: windowID)?.clamped
+    }
+
+    /// Countdown for Overview: the metered window's reset, else the soonest sibling
+    /// (or the plan renewal when that's all that's left — usage credits).
+    func overviewReset(preferredID: String, now: Date = Date()) -> Date? {
+        if let reset = iconWindow(preferredID: preferredID)?.resetsAt, reset > now {
+            return reset
+        }
+        guard iconWindow(preferredID: preferredID)?.isActive != false else { return nil }
+        let sibling = snapshot?.windows.compactMap(\.resetsAt).filter { $0 > now }.min()
+        if let sibling { return sibling }
+        if let renews = snapshot?.renewsAt, renews > now { return renews }
+        return nil
     }
 }
 
@@ -247,7 +359,14 @@ enum Format {
         return candidate
     }
 
-    /// Turns a rolling window length into a human name: 18000s -> "5-hour".
+    /// Length of the billing cycle that ends at `end` (previous calendar-month anniversary).
+    static func monthlyCycleLength(ending end: Date) -> TimeInterval {
+        let start = Calendar.current.date(byAdding: .month, value: -1, to: end)
+            ?? end.addingTimeInterval(-30 * 86_400)
+        return end.timeIntervalSince(start)
+    }
+
+    /// Turns a window length into a human name: 18000s -> "5-hour".
     static func windowName(seconds: Int) -> String {
         switch seconds {
         case 604_800: return "Weekly"

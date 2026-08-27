@@ -185,7 +185,7 @@ enum IconWindowDefaults {
             ]
         case ProviderID.notion.rawValue:
             return [
-                ("rolling", L10n.t(.windowRolling)),
+                ("rolling", L10n.t(.windowNHour, 6)),
                 ("monthly", L10n.t(.windowMonthly)),
                 ("credits", L10n.t(.windowCredits)),
             ]
@@ -210,7 +210,7 @@ enum IconWindowDefaults {
     }
 
     /// Only `nowBurning` follows included → overflow. A pinned window stays put.
-    /// Claude/Notion jump to credits when any included cap (session/weekly, rolling/monthly) is gone.
+    /// Claude/Notion jump to credits when any included cap (session/weekly, 6-hour/monthly) is gone.
     static func resolved(preferred: String, provider: ProviderID, windows: [UsageWindow]) -> String {
         guard preferred == nowBurning else { return preferred }
         let included = includedID(for: provider)

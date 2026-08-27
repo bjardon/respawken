@@ -326,6 +326,12 @@ struct ClaudeProvider: UsageProvider {
 
     // MARK: - Payload
 
+    private static func duration(for key: String) -> TimeInterval? {
+        if key == "five_hour" { return 5 * 3600 }
+        if key.hasPrefix("seven_day") { return 7 * 86_400 }
+        return nil
+    }
+
     /// Windows Anthropic reports, in the order they should appear.
     /// Each window's payload key, display name, and the matching `kind` in the `limits` array.
     private static let knownWindows: [(key: String, title: String, kind: String)] = [
@@ -360,7 +366,8 @@ struct ClaudeProvider: UsageProvider {
                 title: entry.title,
                 usedPercent: used,
                 resetsAt: node.date("resets_at", "reset_at", "resetsAt"),
-                isActive: activeByKind[entry.kind] ?? true
+                isActive: activeByKind[entry.kind] ?? true,
+                duration: Self.duration(for: entry.key)
             ))
         }
 

@@ -250,7 +250,7 @@ private struct OverviewRow: View {
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)
                     Meter(fraction: window.clamped / 100, level: UsageLevel(percent: window.clamped))
-                    if let resets = window.resetsAt {
+                    if let resets = result?.overviewReset(preferredID: windowID, now: now) {
                         Text(L10n.t(.resetsIn, Format.countdown(to: resets, now: now)))
                             .font(.system(size: 9))
                             .foregroundStyle(.tertiary)
@@ -379,7 +379,7 @@ private struct SnapshotBody: View {
     }
 
     /// The reset instant shared by every window that has one, when they agree.
-    /// Windows without a date (idle session, rolling with no `resetsInSeconds`)
+    /// Windows without a date (idle session, 6-hour with no `resetsInSeconds`)
     /// don't block collapsing Cursor/Notion's billing cycle to one footer.
     private func sharedReset(_ windows: [UsageWindow]) -> Date? {
         let dates = windows.compactMap(\.resetsAt)

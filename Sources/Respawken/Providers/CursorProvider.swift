@@ -48,6 +48,13 @@ struct CursorProvider: UsageProvider {
 
     private func parse(_ json: [String: Any]) -> ProviderSnapshot {
         let resets = json.date("billingCycleEnd")
+        let cycleStart = json.date("billingCycleStart")
+        let duration: TimeInterval? = {
+            if let resets, let cycleStart, resets > cycleStart {
+                return resets.timeIntervalSince(cycleStart)
+            }
+            return resets.map(Format.monthlyCycleLength(ending:))
+        }()
         let individual = json.dict("individualUsage")
         let plan = individual?.dict("plan")
 
@@ -56,18 +63,18 @@ struct CursorProvider: UsageProvider {
         var windows: [UsageWindow] = []
         if let auto = plan?.number("autoPercentUsed") {
             windows.append(UsageWindow(id: "included", title: "Cursor Models",
-                                       usedPercent: auto, resetsAt: resets))
+                                       usedPercent: auto, resetsAt: resets, duration: duration))
         }
         if let api = plan?.number("apiPercentUsed") {
             windows.append(UsageWindow(id: "api", title: "Other Models",
-                                       usedPercent: api, resetsAt: resets))
+                                       usedPercent: api, resetsAt: resets, duration: duration))
         }
 
         var onDemandNote: String?
         if let onDemand = individual?.dict("onDemand"), isTrue(onDemand["enabled"]),
            let used = onDemand.number("used"), let limit = onDemand.number("limit"), limit > 0 {
             windows.append(UsageWindow(id: "onDemand", title: "On-demand",
-                                       usedPercent: used / limit * 100, resetsAt: resets))
+                                       usedPercent: used / limit * 100, resetsAt: resets, duration: duration))
             onDemandNote = "On-demand: \(formatCents(used)) / \(formatCents(limit))"
         }
 

@@ -242,7 +242,14 @@ struct CodexProvider: UsageProvider {
             let node = extra.dict("rate_limit")?.dict("primary_window") ?? extra
             if var w = window(id: "extra-\(index)", from: node) {
                 if let name = extra.string("name") ?? extra.string("limit_name") {
-                    w = UsageWindow(id: w.id, title: name, usedPercent: w.usedPercent, resetsAt: w.resetsAt)
+                    w = UsageWindow(
+                        id: w.id,
+                        title: name,
+                        usedPercent: w.usedPercent,
+                        resetsAt: w.resetsAt,
+                        isActive: w.isActive,
+                        duration: w.duration
+                    )
                 }
                 windows.append(w)
             }
@@ -290,7 +297,8 @@ struct CodexProvider: UsageProvider {
             id: id,
             title: seconds > 0 ? Format.windowName(seconds: seconds) : "Usage",
             usedPercent: used,
-            resetsAt: resets
+            resetsAt: resets,
+            duration: seconds > 0 ? TimeInterval(seconds) : nil
         )
     }
 
