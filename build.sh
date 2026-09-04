@@ -1,9 +1,24 @@
 #!/usr/bin/env bash
-# Builds Respawken.app into ./dist. Pass --run to relaunch it afterwards.
+# Builds Respawken.app into ./dist.
+#   --run      relaunch the dist copy (iterate)
+#   --install  copy to /Applications and relaunch that (wrap-up / daily driver)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 cd "$ROOT"
+
+RUN=0
+INSTALL=0
+for arg in "$@"; do
+    case "$arg" in
+        --run) RUN=1 ;;
+        --install) INSTALL=1 ;;
+        *)
+            echo "usage: $0 [--run] [--install]" >&2
+            exit 2
+            ;;
+    esac
+done
 
 APP_NAME="Respawken"
 # New suffix so Notification Center drops the blank icon it cached against the
@@ -12,6 +27,7 @@ BUNDLE_ID="com.bjardon.respawken.app"
 VERSION="${RESPAWKEN_VERSION:-0.1.3}"
 DIST="$ROOT/dist"
 APP="$DIST/$APP_NAME.app"
+INSTALLED="/Applications/$APP_NAME.app"
 
 swift build -c release --disable-sandbox
 
@@ -80,6 +96,8 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>LSMinimumSystemVersion</key><string>14.0</string>
     <!-- Menu bar only: no Dock icon, no app switcher entry. -->
     <key>LSUIElement</key><true/>
+    <!-- Banner clicks go through Launch Services, which otherwise starts a second copy. -->
+    <key>LSMultipleInstancesProhibited</key><true/>
     <key>NSHighResolutionCapable</key><true/>
 </dict>
 </plist>
@@ -89,7 +107,15 @@ codesign --force --sign - --identifier "$BUNDLE_ID" "$APP" >/dev/null 2>&1 || tr
 
 echo "Built $APP"
 
-if [[ "${1:-}" == "--run" ]]; then
+if [[ "$INSTALL" -eq 1 ]]; then
+    pkill -x "$APP_NAME" 2>/dev/null || true
+    sleep 0.3
+    rm -rf "$INSTALLED"
+    ditto "$APP" "$INSTALLED"
+    codesign --force --sign - --identifier "$BUNDLE_ID" "$INSTALLED" >/dev/null 2>&1 || true
+    open "$INSTALLED"
+    echo "Installed $INSTALLED"
+elif [[ "$RUN" -eq 1 ]]; then
     pkill -x "$APP_NAME" 2>/dev/null || true
     sleep 0.3
     open "$APP"

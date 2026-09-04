@@ -182,6 +182,15 @@ enum PanelToggle {
         item.button?.performClick(nil)
     }
 
+    /// Notification clicks should open the panel, not toggle it shut.
+    static func show() {
+        guard let item = statusItem() else { return }
+        if isPanelVisible() { return }
+        NSApp.activate(ignoringOtherApps: true)
+        if toggleExpandedSession(item) { return }
+        item.button?.performClick(nil)
+    }
+
     private static func isPanelVisible() -> Bool {
         NSApp.windows.contains {
             $0.className.contains("MenuBarExtraWindow")

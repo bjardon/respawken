@@ -5,7 +5,7 @@ import UserNotifications
 /// Fires macOS Notification Center alerts when a usage window nears exhaustion,
 /// is on track to empty before reset, or resets.
 @MainActor
-final class UsageNotifier {
+final class UsageNotifier: NSObject, UNUserNotificationCenterDelegate {
     static let shared = UsageNotifier()
 
     static let exhaustionThreshold = 98.0
@@ -18,7 +18,32 @@ final class UsageNotifier {
     private var authorized = false
     private var didRequestAuth = false
 
-    private init() {}
+    private override init() {
+        super.init()
+        // Claim banner clicks so NC talks to this process instead of `open`ing a new one.
+        // Once a delegate is set, willPresent is required or banners stop appearing.
+        center.delegate = self
+    }
+
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler([.banner, .list, .sound])
+    }
+
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        DispatchQueue.main.async {
+            PanelToggle.show()
+            DuplicateLaunch.dismissOthers()
+        }
+        completionHandler()
+    }
 
     func requestAuthorizationIfNeeded() async {
         guard !didRequestAuth else { return }

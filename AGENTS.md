@@ -49,6 +49,7 @@ Verify user-visible behavior in proportion to the experiment. Do not add a profe
 Implement and verify freely, but ship only after the user explicitly accepts the work or asks to wrap up.
 
 - Verify the accepted user-visible behavior (`./build.sh --run`, plus `--probe` / `--preview` if the change needs it).
+- Install the accepted build with `./build.sh --install` so `/Applications/Respawken.app` matches git. Banners and login open that copy, not `dist/`.
 - Refresh `TODO.md` so completed, partial, and unfinished outcomes match what shipped.
 - Integrate the accepted work into `main` and push it. If the environment isolated the work, finish that integration; a pull request is not a completed wrap-up.
 - Consider the Notion devlog on every wrap-up, but append only durable decisions, learnings, or dead ends. Do not duplicate routine implementation already in Git history or `TODO.md`. Use Composio/Notion tooling; page id `39fd5cfe81be809aac5df3a63b65ed84`.

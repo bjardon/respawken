@@ -39,12 +39,18 @@ soonest sibling window, or the plan renewal for usage credits.
 ## Run it
 
 ```sh
-./build.sh --run
+./build.sh --run       # dist copy, for iterating
+./build.sh --install   # /Applications, the copy banners and login open
 ```
 
-That produces `dist/Respawken.app` and launches it. First launch registers it as a login item
-(Settings can turn that off). If you move the bundle, toggle Launch at login off and on so
-macOS picks up the new path.
+`--run` produces `dist/Respawken.app` and launches it. `--install` builds that same bundle,
+copies it to `/Applications/Respawken.app`, and launches the installed copy. Notification
+banners and Launch at login follow `/Applications`, so a wrap-up that only updates `dist/`
+leaves you on the previous binary.
+
+First launch registers it as a login item (Settings can turn that off). If login still
+opens `dist/` after an install, toggle Launch at login off and on so macOS picks up
+`/Applications`.
 
 Two extra modes are useful when something looks wrong:
 

@@ -71,6 +71,9 @@
       Notion 6-hour).
 - [x] **Cursor on-demand** — when enabled, a third window plus `On-demand: $0 / $10`
       (cents from `individualUsage.onDemand`). Static pick in Settings.
+- [x] Banner clicks stay on one Respawken — NC used to `open` `/Applications` as a
+      second instance. Click opens the panel. `./build.sh --install` is the daily
+      driver (banners and login); `--run` stays on `dist/` for iterating.
 
 ## Known gaps
 
