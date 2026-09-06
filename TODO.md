@@ -2,6 +2,11 @@
 
 ## Working
 
+- [x] Reuse unchanged menu bar images; fetch Notion allowance and credits concurrently.
+      Polling frequency stays unchanged; memory and energy gains are not measured.
+- [x] Codex log fallback reads stay bounded during appends and tolerate split UTF-8 characters.
+- [x] Panel PNG exports hide the invisible AppKit opening watcher, removing the renderer's
+      warning overlay.
 - [x] Menu bar item showing stacked meters, no Dock icon
 - [x] Dropdown panel with per-window usage, plan, and reset countdown
 - [x] **Overview + product drill-down** — panel opens on one meter per icon slot

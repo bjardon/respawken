@@ -58,7 +58,11 @@ struct PanelView: View {
             footer
         }
         .frame(width: 320)
-        .background(ResetOverviewOnOpen { tab = .overview })
+        .background(
+            ResetOverviewOnOpen { tab = .overview }
+                .frame(width: 0, height: 0)
+                .hidden()
+        )
     }
 
     private var header: some View {

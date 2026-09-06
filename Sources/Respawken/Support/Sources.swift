@@ -389,12 +389,23 @@ private extension NSError {
 enum FileTail {
     /// Reads the trailing bytes of a file so we never pull a large log fully into memory.
     static func lines(of path: String, maxBytes: Int = 512 * 1024) -> [String] {
+        guard maxBytes > 0 else { return [] }
         guard let handle = FileHandle(forReadingAtPath: path) else { return [] }
         defer { try? handle.close() }
         guard let size = try? handle.seekToEnd() else { return [] }
         let start = size > UInt64(maxBytes) ? size - UInt64(maxBytes) : 0
-        try? handle.seek(toOffset: start)
-        guard let data = try? handle.readToEnd(), let text = String(data: data, encoding: .utf8) else { return [] }
+        // Read one preceding byte to recognize an exact line boundary. Cap the read
+        // even if the running CLI appends more data after seekToEnd().
+        let offset = start > 0 ? start - 1 : 0
+        do { try handle.seek(toOffset: offset) } catch { return [] }
+        guard var data = try? handle.read(upToCount: Int(size - offset)) else { return [] }
+        if start > 0 {
+            guard let newline = data.firstIndex(of: 10) else { return [] }
+            data = Data(data[data.index(after: newline)...])
+        }
+        // An in-progress final write can end mid-character. Preserve complete
+        // earlier records; JSON parsing will reject an incomplete final record.
+        let text = String(decoding: data, as: UTF8.self)
         return text.components(separatedBy: "\n")
     }
 }

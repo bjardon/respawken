@@ -9,11 +9,14 @@ enum MenuBarIcon {
     private static let singleColumnWidth: CGFloat = 22
     private static let dualColumnWidth: CGFloat = 42
 
-    struct Entry {
+    struct Entry: Equatable {
         let provider: ProviderID
         let percent: Double?
         let accent: NSColor
     }
+
+    @MainActor private static var cachedEntries: [Entry]?
+    @MainActor private static var cachedImage: NSImage?
 
     @MainActor
     static func render(store: UsageStore) -> NSImage {
@@ -24,7 +27,11 @@ enum MenuBarIcon {
                 accent: store.nsAccent(for: provider)
             )
         }
-        return render(entries: entries)
+        if entries == cachedEntries, let cachedImage { return cachedImage }
+        let image = render(entries: entries)
+        cachedEntries = entries
+        cachedImage = image
+        return image
     }
 
     static func render(entries: [Entry]) -> NSImage {

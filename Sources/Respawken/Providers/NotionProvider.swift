@@ -76,31 +76,22 @@ struct NotionProvider: UsageProvider {
                 return .failed("No Business/Enterprise Notion workspace found")
             }
 
-            let rate = try await HTTP.postJSON(
+            async let rateRequest = HTTP.postJSON(
                 "\(Self.apiBase)/getCreditRateLimitStatus",
                 headers: headers,
                 body: ["spaceId": workspace.id]
             )
 
+            async let creditsRequest = optionalCredits(headers: headers, spaceID: workspace.id)
+            let rate = try await rateRequest
+
             if let status = rate.string("status"), status == "not_applicable" {
                 return .failed("AI usage allowance not tracked for \(workspace.name) (\(workspace.tierLabel))")
             }
 
-            var creditsJSON: [String: Any]?
-            do {
-                creditsJSON = try await HTTP.postJSON(
-                    "\(Self.apiBase)/getAIUsageEligibilityV2",
-                    headers: headers,
-                    body: ["spaceId": workspace.id]
-                )
-            } catch {
-                // Credits are secondary; allowance alone is still useful.
-                creditsJSON = nil
-            }
-
             return .ok(Self.parse(
                 rate: rate,
-                credits: creditsJSON,
+                credits: await creditsRequest,
                 workspace: workspace,
                 account: Self.accountEmail(from: spacesJSON)
             ))
@@ -109,6 +100,15 @@ struct NotionProvider: UsageProvider {
         } catch {
             return .failed(error.localizedDescription, transient: HTTP.isTransient(error))
         }
+    }
+
+    private func optionalCredits(headers: [String: String], spaceID: String) async -> [String: Any]? {
+        // Credits are secondary; allowance alone is still useful.
+        try? await HTTP.postJSON(
+            "\(Self.apiBase)/getAIUsageEligibilityV2",
+            headers: headers,
+            body: ["spaceId": spaceID]
+        )
     }
 
     // MARK: - Cookie
