@@ -258,12 +258,9 @@ struct ProviderResult {
     }
 
     /// Window that drives the menu bar meter (and Overview row).
-    /// `nowBurning` follows included → overflow; any other pick is pinned.
     func iconWindow(preferredID: String) -> UsageWindow? {
         guard let windows = snapshot?.windows, !windows.isEmpty else { return nil }
-        let id = IconWindowDefaults.resolved(preferred: preferredID, provider: provider, windows: windows)
-        return windows.first(where: { $0.id == id })
-            ?? windows.first(where: { $0.id == preferredID })
+        return windows.first(where: { $0.id == preferredID })
             ?? windows.first
     }
 

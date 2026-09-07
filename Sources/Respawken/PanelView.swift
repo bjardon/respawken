@@ -283,11 +283,7 @@ private struct OverviewRow: View {
     }
 
     private func windowCaption(_ window: UsageWindow) -> String {
-        let name = L10n.windowTitle(id: window.id, stored: window.title)
-        if windowID == IconWindowDefaults.nowBurning {
-            return L10n.t(.nowBurningWindow, name)
-        }
-        return name
+        L10n.windowTitle(id: window.id, stored: window.title)
     }
 
     private func message(_ text: String, color: some ShapeStyle) -> some View {

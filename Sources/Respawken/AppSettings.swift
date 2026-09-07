@@ -107,7 +107,8 @@ struct AppSettings: Codable, Equatable, Sendable {
 
     /// Window id that should drive the icon meter for this provider.
     func iconWindowID(for provider: ProviderID) -> String {
-        if let explicit = prefs(for: provider).windowID, !explicit.isEmpty {
+        if let explicit = prefs(for: provider).windowID, !explicit.isEmpty,
+           explicit != "now_burning" {
             return explicit
         }
         return IconWindowDefaults.windowID(for: provider)
@@ -151,24 +152,13 @@ struct AppSettings: Codable, Equatable, Sendable {
 
 /// Built-in window ids used when the user hasn't picked one.
 enum IconWindowDefaults {
-    /// Settings sentinel: follow included → overflow. Not a real `UsageWindow.id`.
-    static let nowBurning = "now_burning"
-
-    static func followsConsumption(_ provider: ProviderID) -> Bool {
-        switch provider.rawValue {
-        case ProviderID.codex.rawValue, ProviderID.cursor.rawValue, ProviderID.antigravity.rawValue:
-            return false
-        default:
-            return true
-        }
-    }
-
     static func windowID(for provider: ProviderID) -> String {
         switch provider.rawValue {
         case ProviderID.codex.rawValue: return "primary"
         case ProviderID.cursor.rawValue: return "included"
+        case ProviderID.notion.rawValue: return "rolling"
         case ProviderID.antigravity.rawValue: return "gemini-5h"
-        default: return nowBurning
+        default: return "five_hour"
         }
     }
 
@@ -207,42 +197,6 @@ enum IconWindowDefaults {
                 ("seven_day_fable", L10n.t(.windowWeeklyFable)),
                 ("extra_usage", L10n.t(.windowUsageCredits)),
             ]
-        }
-    }
-
-    /// Only `nowBurning` follows included → overflow. A pinned window stays put.
-    /// Claude/Notion jump to credits when any included cap (session/weekly, 6-hour/monthly) is gone.
-    static func resolved(preferred: String, provider: ProviderID, windows: [UsageWindow]) -> String {
-        guard preferred == nowBurning else { return preferred }
-        let included = includedID(for: provider)
-        guard let overflowID = overflowID(for: included),
-              windows.contains(where: { $0.id == overflowID })
-        else { return included }
-
-        let includedGone = includedIDs(for: included).contains { id in
-            guard let window = windows.first(where: { $0.id == id }) else { return false }
-            return window.clamped >= 100
-        }
-        return includedGone ? overflowID : included
-    }
-
-    private static func includedID(for provider: ProviderID) -> String {
-        provider.rawValue == ProviderID.notion.rawValue ? "rolling" : "five_hour"
-    }
-
-    private static func overflowID(for includedID: String) -> String? {
-        switch includedID {
-        case "five_hour": return "extra_usage"
-        case "rolling": return "credits"
-        default: return nil
-        }
-    }
-
-    private static func includedIDs(for includedID: String) -> [String] {
-        switch includedID {
-        case "five_hour": return ["five_hour", "seven_day"]
-        case "rolling": return ["rolling", "monthly"]
-        default: return [includedID]
         }
     }
 }

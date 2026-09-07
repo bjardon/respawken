@@ -62,7 +62,6 @@ enum L10n {
         case "seven_day_cowork": return t(.windowWeeklyCowork)
         case "seven_day_fable": return t(.windowWeeklyFable)
         case "extra_usage": return t(.windowUsageCredits)
-        case "now_burning": return t(.windowNowBurning)
         case "rolling": return durationTitle(stored)
         case "gemini-weekly": return t(.windowGeminiWeekly)
         case "gemini-5h": return t(.windowGemini5h)
@@ -206,8 +205,6 @@ enum L10n {
         case windowClaudeGptWeekly
         case windowClaudeGpt5h
         case windowUsageCredits
-        case windowNowBurning
-        case nowBurningWindow
 
         case claudeRunLogin
         case claudeTokenLacks
@@ -352,8 +349,6 @@ enum L10n {
         .windowClaudeGptWeekly: [.english: "Claude/GPT Weekly", .spanish: "Claude/GPT semanal"],
         .windowClaudeGpt5h: [.english: "Claude/GPT 5-hour", .spanish: "Claude/GPT 5 horas"],
         .windowUsageCredits: [.english: "Usage credits", .spanish: "Créditos de uso"],
-        .windowNowBurning: [.english: "Now burning", .spanish: "En consumo"],
-        .nowBurningWindow: [.english: "Now burning: %@", .spanish: "En consumo: %@"],
 
         .claudeRunLogin: [
             .english: "Run `claude auth login` (%@)",

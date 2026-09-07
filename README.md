@@ -30,9 +30,8 @@ and to change the keyboard shortcut that toggles the panel (default **⌃⌥U**)
 Defaults match Personal (`~/.claude`) and Work (`~/.claude-oxp`). Changes persist under
 `~/Library/Application Support/Respawken/settings.json`.
 
-Claude and Notion default to **Now burning**: the Overview meter follows included usage,
-then credits once that cap is gone. Session / 6-hour stay as pins if you pick them.
-Cursor's three windows (Cursor Models, Other Models, On-demand) are static picks.
+Each product pins one window onto the icon and Overview (Claude session, Notion 6-hour,
+Codex 5-hour, Cursor Models, Antigravity Gemini 5-hour). Change the pin in Settings.
 If the metered window has no reset time, Overview still shows `resets in …` from the
 soonest sibling window, or the plan renewal for usage credits.
 

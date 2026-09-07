@@ -22,8 +22,7 @@ Implement immediately from the desired outcome. Prefer the shortest path to a wo
 **Meter.** The bar that fills up for a window.
 **Row.** Say which: an Overview row, or a window row on a product screen.
 
-**Now burning.** Show whatever you're actually using: included first, then credits.
-**Pin.** Lock one window onto the icon instead.
+**Pin.** Lock one window onto the icon.
 **Reset.** `resets in …`, when that usage cycle starts over.
 **Renew.** `Renews:`, when the subscription bills again. Not the same as a reset.
 

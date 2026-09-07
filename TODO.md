@@ -65,17 +65,14 @@
       with legacy `extra_usage` as fallback). Meter + `$used / $limit` on the
       product page when the org has a positive cap; a `$0` limit is note-only.
 - [x] **Claude Fable** — weekly nested cap from `/api/oauth/usage` `limits[]`
-      (`weekly_scoped` / display_name Fable). Pin-able. Not on Now burning.
-- [x] **Now burning** — Settings option (default for Claude and Notion) that
-      follows included usage, then credits once session/weekly or 6-hour/monthly
-      hits 100%. Overview reads `Now burning: <window>`. Session/6-hour stay
-      pins. Cursor is not on this path.
+      (`weekly_scoped` / display_name Fable). Pin-able.
+- [x] Dropped **Now burning** — Claude and Notion pin session / 6-hour again.
+      Leftover `now_burning` settings fall back to that.
 - [x] **Burn pace** — weekly/monthly windows project cycle-average burn. One wry
       notification per cycle when ahead (`⏳ Ahead of pace`). Session, 6-hour, and
       Notion credits stay off this path. Panel callouts are parked.
 - [x] Overview `resets in …` falls back to the soonest sibling window, or the plan
-      renewal, when the metered window has no countdown (Now burning credits, idle
-      Notion 6-hour).
+      renewal, when the metered window has no countdown (credits, idle Notion 6-hour).
 - [x] **Cursor on-demand** — when enabled, a third window plus `On-demand: $0 / $10`
       (cents from `individualUsage.onDemand`). Static pick in Settings.
 - [x] Banner clicks stay on one Respawken — NC used to `open` `/Applications` as a
@@ -94,9 +91,8 @@
   currently pick the first Business/Enterprise space Notion returns.
 - Antigravity quota is Cloud Code `v1internal` plus `agy`'s local Connect-RPC; Google can
   change either without notice. No subscription renewal date is exposed.
-- Cursor Now burning is parked. Other Models is a sibling included pool (labs / open
-  weights), not a step after Cursor Models. On-demand is the fallback for both, and
-  a linear walk would stall on unused Other Models at 0%. Pin the window in Settings.
+- Cursor Other Models is a sibling included pool (labs / open weights), not a step
+  after Cursor Models. On-demand is the fallback for both. Pin the window in Settings.
 
 ## Not done yet
 
