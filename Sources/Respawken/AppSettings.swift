@@ -204,6 +204,7 @@ enum IconWindowDefaults {
                 ("seven_day_sonnet", L10n.t(.windowWeeklySonnet)),
                 ("seven_day_routines", L10n.t(.windowWeeklyRoutines)),
                 ("seven_day_cowork", L10n.t(.windowWeeklyCowork)),
+                ("seven_day_fable", L10n.t(.windowWeeklyFable)),
                 ("extra_usage", L10n.t(.windowUsageCredits)),
             ]
         }

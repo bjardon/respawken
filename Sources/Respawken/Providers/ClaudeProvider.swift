@@ -371,6 +371,14 @@ struct ClaudeProvider: UsageProvider {
             ))
         }
 
+        // Fable is a nested weekly cap (up to 50% of the shared weekly pool on
+        // premium seats). It is not a `seven_day_*` top-level key; Anthropic
+        // reports it on `limits[]` as `weekly_scoped` / display_name Fable,
+        // and sometimes again on `model_scoped`.
+        if let fable = fableWindow(from: json) {
+            windows.append(fable)
+        }
+
         var renewsAt: Date?
         if let created = profile?.dict("organization")?.date("subscription_created_at") {
             renewsAt = Format.nextMonthly(from: created)
@@ -405,6 +413,42 @@ struct ClaudeProvider: UsageProvider {
     private struct ExtraUsageReading {
         var window: UsageWindow?
         var note: String?
+    }
+
+    private func fableWindow(from json: [String: Any]) -> UsageWindow? {
+        if let node = json.dict("seven_day_fable"),
+           let window = usageWindow(id: "seven_day_fable", title: "Weekly · Fable", from: node) {
+            return window
+        }
+
+        for limit in json["limits"] as? [[String: Any]] ?? [] {
+            guard limit.string("kind") == "weekly_scoped",
+                  limit.dict("scope")?.dict("model")?.string("display_name") == "Fable",
+                  let window = usageWindow(id: "seven_day_fable", title: "Weekly · Fable", from: limit)
+            else { continue }
+            return window
+        }
+
+        for entry in json["model_scoped"] as? [[String: Any]] ?? [] {
+            guard entry.string("display_name") == "Fable",
+                  let window = usageWindow(id: "seven_day_fable", title: "Weekly · Fable", from: entry)
+            else { continue }
+            return window
+        }
+        return nil
+    }
+
+    private func usageWindow(id: String, title: String, from node: [String: Any]) -> UsageWindow? {
+        guard let used = node.number("percent", "utilization", "used_percent", "usedPercent", "percent_used")
+        else { return nil }
+        return UsageWindow(
+            id: id,
+            title: title,
+            usedPercent: used,
+            resetsAt: node.date("resets_at", "reset_at", "resetsAt"),
+            isActive: node["is_active"] as? Bool ?? true,
+            duration: Self.duration(for: id)
+        )
     }
 
     private func extraUsage(from json: [String: Any]) -> ExtraUsageReading? {

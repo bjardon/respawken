@@ -63,7 +63,9 @@
       and Notion from their billing-cycle end.
 - [x] **Claude usage credits** — extra budget from `/api/oauth/usage` (`spend`,
       with legacy `extra_usage` as fallback). Meter + `$used / $limit` on the
-      product page when the org has enabled it.
+      product page when the org has a positive cap; a `$0` limit is note-only.
+- [x] **Claude Fable** — weekly nested cap from `/api/oauth/usage` `limits[]`
+      (`weekly_scoped` / display_name Fable). Pin-able. Not on Now burning.
 - [x] **Now burning** — Settings option (default for Claude and Notion) that
       follows included usage, then credits once session/weekly or 6-hour/monthly
       hits 100%. Overview reads `Now burning: <window>`. Session/6-hour stay
@@ -84,8 +86,8 @@
 
 - Claude shows no account email — the usage endpoint doesn't return one, unlike Codex and Cursor.
   Multi-account rows use configured labels (Personal / Work) instead.
-- Claude's Opus/Sonnet/Cowork weekly windows are parsed but all came back `null` on a Team plan,
-  so those rows are still unproven.
+- Claude's Opus/Sonnet/Cowork weekly windows are still `null` on Team. Fable is the
+  scoped weekly that actually arrives, via `limits[]`, not a `seven_day_*` key.
 - Settings has no reorder UI yet — accounts appear in list order; add/remove works.
 - Notion AI uses undocumented `app.notion.com/api/v3` endpoints authenticated with the
   desktop session cookie; Notion can change them without notice. Multi-workspace accounts

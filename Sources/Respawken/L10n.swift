@@ -60,6 +60,7 @@ enum L10n {
         case "seven_day_sonnet": return t(.windowWeeklySonnet)
         case "seven_day_routines": return t(.windowWeeklyRoutines)
         case "seven_day_cowork": return t(.windowWeeklyCowork)
+        case "seven_day_fable": return t(.windowWeeklyFable)
         case "extra_usage": return t(.windowUsageCredits)
         case "now_burning": return t(.windowNowBurning)
         case "rolling": return durationTitle(stored)
@@ -194,6 +195,7 @@ enum L10n {
         case windowWeeklySonnet
         case windowWeeklyRoutines
         case windowWeeklyCowork
+        case windowWeeklyFable
         case windowCursorModels
         case windowOtherModels
         case windowOnDemand
@@ -339,6 +341,7 @@ enum L10n {
         .windowWeeklySonnet: [.english: "Weekly · Sonnet", .spanish: "Semanal · Sonnet"],
         .windowWeeklyRoutines: [.english: "Weekly · Routines", .spanish: "Semanal · Rutinas"],
         .windowWeeklyCowork: [.english: "Weekly · Cowork", .spanish: "Semanal · Cowork"],
+        .windowWeeklyFable: [.english: "Weekly · Fable", .spanish: "Semanal · Fable"],
         .windowCursorModels: [.english: "Cursor Models", .spanish: "Modelos Cursor"],
         .windowOtherModels: [.english: "Other Models", .spanish: "Otros modelos"],
         .windowOnDemand: [.english: "On-demand", .spanish: "Bajo demanda"],
