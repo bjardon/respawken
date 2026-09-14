@@ -155,7 +155,10 @@ final class UsageNotifier: NSObject, UNUserNotificationCenterDelegate {
         }
 
         for (key, entry) in currentCycles {
-            guard let empty = entry.window.emptiesAt(), !fired.contains(key) else { continue }
+            guard BurnPace.notifiesAhead(window: entry.window),
+                  let empty = entry.window.emptiesAt(),
+                  !fired.contains(key)
+            else { continue }
             fired.insert(key)
             deliver(
                 id: "pace.\(key)",

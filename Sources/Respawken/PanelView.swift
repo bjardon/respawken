@@ -253,17 +253,12 @@ private struct OverviewRow: View {
                     Text(windowCaption(window))
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)
-                    Meter(fraction: window.clamped / 100, level: UsageLevel(percent: window.clamped))
-                    if let resets = result?.overviewReset(preferredID: windowID, now: now) {
-                        Text(L10n.t(.resetsIn, Format.countdown(to: resets, now: now)))
-                            .font(.system(size: 9))
-                            .foregroundStyle(.tertiary)
-                            .monospacedDigit()
-                    } else if !window.isActive {
-                        Text(L10n.t(.notStarted))
-                            .font(.system(size: 9))
-                            .foregroundStyle(.tertiary)
-                    }
+                    Meter(window: window, now: now)
+                    WindowFooting(
+                        window: window,
+                        now: now,
+                        reset: result?.overviewReset(preferredID: windowID, now: now)
+                    )
                 } else {
                     message(L10n.display(result?.snapshot?.note ?? L10n.t(.noUsageReported)), color: .secondary)
                 }
@@ -407,18 +402,54 @@ private struct WindowRow: View {
                     .foregroundStyle(UsageLevel(percent: window.clamped).color)
             }
 
-            Meter(fraction: window.clamped / 100, level: UsageLevel(percent: window.clamped))
+            Meter(window: window, now: now)
+            WindowFooting(
+                window: window,
+                now: now,
+                reset: showsReset ? window.resetsAt : nil
+            )
+        }
+    }
+}
 
-            if showsReset, let resets = window.resetsAt {
-                Text(L10n.t(.resetsIn, Format.countdown(to: resets, now: now)))
-                    .font(.system(size: 9))
-                    .foregroundStyle(.tertiary)
-                    .monospacedDigit()
-            } else if !window.isActive {
-                Text(L10n.t(.notStarted))
-                    .font(.system(size: 9))
-                    .foregroundStyle(.tertiary)
+/// `resets in …` on the left, pace on the right. Shared-reset rows omit the
+/// countdown here and keep pace under the bar.
+private struct WindowFooting: View {
+    let window: UsageWindow
+    let now: Date
+    var reset: Date? = nil
+
+    var body: some View {
+        let pace = paceCaption
+        let resetText = reset.flatMap { date -> String? in
+            guard date > now else { return nil }
+            return L10n.t(.resetsIn, Format.countdown(to: date, now: now))
+        }
+        let idle = resetText == nil && !window.isActive
+        if resetText != nil || pace != nil || idle {
+            HStack(spacing: 8) {
+                if let resetText {
+                    Text(resetText)
+                } else if idle {
+                    Text(L10n.t(.notStarted))
+                }
+                Spacer(minLength: 8)
+                if let pace {
+                    Text(pace)
+                }
             }
+            .font(.system(size: 9))
+            .foregroundStyle(.tertiary)
+            .monospacedDigit()
+        }
+    }
+
+    private var paceCaption: String? {
+        switch window.pace(now: now) {
+        case .below: return L10n.t(.belowPace)
+        case .on: return L10n.t(.onPace)
+        case .ahead(let empty): return L10n.t(.emptiesIn, Format.countdown(to: empty, now: now))
+        case nil: return nil
         }
     }
 }
@@ -437,17 +468,59 @@ private struct RenewsRow: View {
 private struct Meter: View {
     let fraction: Double
     let level: UsageLevel
+    let expected: Double?
+    let ahead: Bool
+
+    init(window: UsageWindow, now: Date) {
+        let used = window.clamped
+        fraction = used / 100
+        level = UsageLevel(percent: used)
+        expected = window.expectedPercent(now: now).map { min(max($0 / 100, 0), 1) }
+        if case .ahead = window.pace(now: now) {
+            ahead = true
+        } else {
+            ahead = false
+        }
+    }
 
     var body: some View {
         GeometryReader { geo in
+            let width = geo.size.width
+            let usedWidth = max(width * fraction, fraction > 0 ? 4 : 0)
             ZStack(alignment: .leading) {
-                Capsule().fill(Color.primary.opacity(0.09))
                 Capsule()
-                    .fill(level.color)
-                    .frame(width: max(geo.size.width * fraction, fraction > 0 ? 4 : 0))
+                    .fill(Color.primary.opacity(0.09))
+                    .frame(height: 4)
+                fillBar(usedWidth: usedWidth, width: width)
+                if let expected {
+                    Capsule()
+                        .fill(Color.primary.opacity(0.55))
+                        .frame(width: 1.5, height: 8)
+                        .offset(x: min(max(width * expected - 0.75, 0), max(width - 1.5, 0)))
+                }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(height: 4)
+        .frame(height: 8)
+    }
+
+    @ViewBuilder
+    private func fillBar(usedWidth: CGFloat, width: CGFloat) -> some View {
+        let expectedWidth = expected.map { width * $0 } ?? 0
+        if ahead, expected != nil, expectedWidth < usedWidth - 0.5 {
+            HStack(spacing: 0) {
+                Rectangle().fill(level.color)
+                    .frame(width: expectedWidth)
+                Rectangle().fill(level.color.opacity(0.42))
+                    .frame(width: usedWidth - expectedWidth)
+            }
+            .frame(width: usedWidth, height: 4, alignment: .leading)
+            .clipShape(Capsule())
+        } else if usedWidth > 0 {
+            Capsule()
+                .fill(level.color)
+                .frame(width: usedWidth, height: 4)
+        }
     }
 }
 

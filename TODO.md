@@ -68,9 +68,11 @@
       (`weekly_scoped` / display_name Fable). Pin-able.
 - [x] Dropped **Now burning** — Claude and Notion pin session / 6-hour again.
       Leftover `now_burning` settings fall back to that.
-- [x] **Burn pace** — weekly/monthly windows project cycle-average burn. One wry
-      notification per cycle when ahead (`⏳ Ahead of pace`). Session, 6-hour, and
-      Notion credits stay off this path. Panel callouts are parked.
+- [x] **Burn pace** — every window with a duration and reset projects cycle-average
+      burn. Panel meters show an expected tick plus `below pace` / `on pace` /
+      `empties in …`. One wry notification per cycle when a weekly/monthly window
+      is ahead (`⏳ Ahead of pace`); session, 6-hour, and Notion credits stay off
+      that path. Menu bar is unchanged.
 - [x] Overview `resets in …` falls back to the soonest sibling window, or the plan
       renewal, when the metered window has no countdown (credits, idle Notion 6-hour).
 - [x] **Cursor on-demand** — when enabled, a third window plus `On-demand: $0 / $10`
@@ -96,7 +98,6 @@
 
 ## Not done yet
 
-- [ ] Panel pace callouts (`below pace` / `on pace` / `empties in …`) — layout parked
 - [ ] Remember the last good reading across restarts, so the panel isn't empty on launch
 - [ ] Reorder Claude accounts in Settings (drag or up/down)
 - [ ] Hover states on the other panel controls (back, gear, refresh, Quit)

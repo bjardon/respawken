@@ -23,7 +23,9 @@ looks like a healthy zero.
 
 Open the menu extra for a labeled Overview of those same meters. Click a row
 to see that product's full windows (Claude stacks every account). The panel
-reopens on Overview.
+reopens on Overview. Each meter marks where a flat burn would sit; the line
+under it says `below pace`, `on pace`, or `empties in …`. The menu bar stays
+used% only.
 
 Open **Settings** from the gear on the panel to add or edit Claude accounts (label + config dir),
 and to change the keyboard shortcut that toggles the panel (default **⌃⌥U**).

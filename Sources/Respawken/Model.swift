@@ -121,15 +121,19 @@ struct UsageWindow: Identifiable {
     }
 
     /// When this window hits 100% if the cycle-average burn continues.
-    /// Nil unless it's a long window that's clearly ahead of a sustainable pace.
     func emptiesAt(now: Date = Date()) -> Date? {
         if case .ahead(let date) = pace(now: now) { return date }
         return nil
     }
+
+    /// Straight-line used% at `now`. Nil when `pace` has nothing to show.
+    func expectedPercent(now: Date = Date()) -> Double? {
+        guard pace(now: now) != nil else { return nil }
+        return BurnPace.expectedPercent(window: self, now: now)
+    }
 }
 
-/// Cycle-average projection for weekly / monthly windows.
-/// Session and 5/6-hour windows are bursty by design — fumes covers those.
+/// Cycle-average projection from used% over elapsed time.
 enum BurnPace {
     enum Reading {
         case below
@@ -137,7 +141,7 @@ enum BurnPace {
         case ahead(Date)
     }
 
-    /// Skip anything shorter than ~a week (daily, session, Notion's 6-hour).
+    /// Pace banners stay on weekly/monthly windows. Calculation has no floor.
     static let minDuration: TimeInterval = 6 * 24 * 60 * 60
     static let minUsedPercent = 15.0
     /// Fumes owns the last stretch.
@@ -149,10 +153,20 @@ enum BurnPace {
     static let minProjectedFinal = 115.0
     static let maxProjectedForBelow = 85.0
 
+    /// Elapsed fraction of the window, as a used%.
+    static func expectedPercent(window: UsageWindow, now: Date) -> Double? {
+        guard window.isActive,
+              let duration = window.duration, duration > 0,
+              let resets = window.resetsAt, resets > now
+        else { return nil }
+        let elapsed = duration - resets.timeIntervalSince(now)
+        guard elapsed > 0 else { return nil }
+        return min(max(elapsed / duration * 100, 0), 100)
+    }
+
     static func reading(window: UsageWindow, now: Date) -> Reading? {
-        guard window.id != "credits",
-              window.isActive,
-              let duration = window.duration, duration >= minDuration,
+        guard window.isActive,
+              let duration = window.duration, duration > 0,
               let resets = window.resetsAt, resets > now
         else { return nil }
 
@@ -171,7 +185,7 @@ enum BurnPace {
 
     static func emptiesAt(window: UsageWindow, now: Date) -> Date? {
         guard window.isActive,
-              let duration = window.duration, duration >= minDuration,
+              let duration = window.duration, duration > 0,
               let resets = window.resetsAt, resets > now
         else { return nil }
 
@@ -191,9 +205,15 @@ enum BurnPace {
         let projectedFinal = used * duration / elapsed
         guard projectedFinal >= minProjectedFinal else { return nil }
         let emptyAt = now.addingTimeInterval(remainingPct / rate)
-        let lead = max(minLead, duration * minLeadFraction)
+        let proportional = duration * minLeadFraction
+        let lead = duration >= minDuration ? max(minLead, proportional) : proportional
         guard resets.timeIntervalSince(emptyAt) >= lead else { return nil }
         return emptyAt
+    }
+
+    /// Session, 6-hour, and Notion credits stay off the notification path.
+    static func notifiesAhead(window: UsageWindow) -> Bool {
+        window.id != "credits" && (window.duration ?? 0) >= minDuration
     }
 
     /// Window whose pace should sit on a shared reset line — the most urgent reading.
