@@ -276,6 +276,7 @@ enum HTTP {
     struct Failure: Error, LocalizedError {
         let status: Int
         let body: String
+        var retryAt: Date? = nil
         var errorDescription: String? {
             switch status {
             case 429: return "Rate limited — will retry"
@@ -369,7 +370,8 @@ enum HTTP {
         let (data, response) = try await session.data(for: req)
         let status = (response as? HTTPURLResponse)?.statusCode ?? -1
         guard (200..<300).contains(status) else {
-            throw Failure(status: status, body: String(data: data, encoding: .utf8) ?? "")
+            throw Failure(status: status, body: String(data: data, encoding: .utf8) ?? "",
+                          retryAt: RetryAfter.date((response as? HTTPURLResponse)?.value(forHTTPHeaderField: "Retry-After")))
         }
         guard let obj = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw Failure(status: status, body: "unexpected payload")

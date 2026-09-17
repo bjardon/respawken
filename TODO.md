@@ -2,11 +2,17 @@
 
 ## Working
 
+- [x] Claude pace indicators use reported usage and reset times even when `is_active` is false.
+- [x] Claude polling has a 5-minute minimum per account and a persistent, shared 429
+      cooldown across the app, manual refreshes, probes, and previews. Honor `Retry-After`,
+      increase waits after repeated failures, and cache renewal metadata for 24 hours.
+- [x] All product screens resize the native panel to their content; returning to Overview
+      restores its height without leaving empty margins.
 - [x] Reuse unchanged menu bar images; fetch Notion allowance and credits concurrently.
       Polling frequency stays unchanged; memory and energy gains are not measured.
 - [x] Codex log fallback reads stay bounded during appends and tolerate split UTF-8 characters.
-- [x] Panel PNG exports hide the invisible AppKit opening watcher, removing the renderer's
-      warning overlay.
+- [x] Panel PNG exports omit the AppKit opening watcher to avoid the renderer's warning
+      overlay. The live panel keeps it attached for opening and sizing callbacks.
 - [x] Menu bar item showing stacked meters, no Dock icon
 - [x] Dropdown panel with per-window usage, plan, and reset countdown
 - [x] **Overview + product drill-down** — panel opens on one meter per icon slot
@@ -83,6 +89,8 @@
 
 ## Known gaps
 
+- Early windows can say "on pace" while ahead of expected usage, before the forecasting
+  thresholds allow an exhaustion estimate.
 - Claude shows no account email — the usage endpoint doesn't return one, unlike Codex and Cursor.
   Multi-account rows use configured labels (Personal / Work) instead.
 - Claude's Opus/Sonnet/Cowork weekly windows are still `null` on Team. Fable is the

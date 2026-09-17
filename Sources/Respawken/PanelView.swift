@@ -58,10 +58,16 @@ struct PanelView: View {
             footer
         }
         .frame(width: 320)
+        .fixedSize(horizontal: false, vertical: true)
         .background(
-            ResetOverviewOnOpen { tab = .overview }
-                .frame(width: 0, height: 0)
-                .hidden()
+            GeometryReader { geometry in
+                // ImageRenderer cannot draw an AppKit view. In the live panel it
+                // must stay attached to the window for sizing and open callbacks.
+                if !CommandLine.arguments.contains("--preview") {
+                    ResetOverviewOnOpen(contentSize: geometry.size) { tab = .overview }
+                        .frame(width: 0, height: 0)
+                }
+            }
         )
     }
 
@@ -527,20 +533,25 @@ private struct Meter: View {
 /// MenuBarExtra keeps PanelView alive after dismiss, so @State would otherwise
 /// reopen on Claude. Reset on a rising edge of shown/key, not while it stays open.
 private struct ResetOverviewOnOpen: NSViewRepresentable {
+    var contentSize: CGSize
     var action: () -> Void
 
     func makeNSView(context: Context) -> OpenWatcher {
         let view = OpenWatcher()
+        view.contentSize = contentSize
         view.action = action
         return view
     }
 
     func updateNSView(_ view: OpenWatcher, context: Context) {
         view.action = action
+        view.contentSize = contentSize
+        view.scheduleResize()
     }
 }
 
 private final class OpenWatcher: NSView {
+    var contentSize: CGSize = .zero
     var action: (() -> Void)?
     private var observers: [NSObjectProtocol] = []
     private var wasShown = false
@@ -551,6 +562,7 @@ private final class OpenWatcher: NSView {
         observers.forEach(NotificationCenter.default.removeObserver)
         observers = []
         guard let window else { return }
+        scheduleResize()
         wasShown = Self.isShown(window)
         wasKey = window.isKeyWindow
         let center = NotificationCenter.default
@@ -568,6 +580,20 @@ private final class OpenWatcher: NSView {
 
     deinit {
         observers.forEach(NotificationCenter.default.removeObserver)
+    }
+
+    func scheduleResize() {
+        // MenuBarExtra can retain Overview's height after switching to a shorter
+        // product screen. Resize after SwiftUI finishes measuring the new content.
+        DispatchQueue.main.async { [weak self] in
+            guard let self, let window = self.window,
+                  self.contentSize.width > 0, self.contentSize.height > 0 else { return }
+            let size = window.frameRect(forContentRect: NSRect(origin: .zero, size: self.contentSize)).size
+            let old = window.frame
+            guard abs(old.width - size.width) > 0.5 || abs(old.height - size.height) > 0.5 else { return }
+            window.setFrame(NSRect(x: old.minX, y: old.maxY - size.height,
+                                   width: size.width, height: size.height), display: true)
+        }
     }
 
     private func shownChanged() {

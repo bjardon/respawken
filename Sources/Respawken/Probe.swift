@@ -40,6 +40,7 @@ enum Probe {
                         case nil: break
                         }
                         print("  - \(window.title): \(Format.percent(window.clamped))\(suffix)\(mark)")
+                        print("    active=\(window.isActive), duration=\(window.duration.map { String(Int($0)) + "s" } ?? "unknown")")
                     }
                     if let renews = snapshot.renewsAt {
                         print("  renews \(Format.billingDate(renews))")

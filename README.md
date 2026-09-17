@@ -63,8 +63,8 @@ Two extra modes are useful when something looks wrong:
 ## Where the numbers come from
 
 Everything is read on-device from credentials the tools already store. respawken never asks you to
-log in again. The only thing it stores of its own is the Claude account list (and a small
-notification bookkeeping key in UserDefaults).
+log in again. It stores app preferences, notification bookkeeping, and Claude polling
+timestamps and renewal metadata locally.
 
 | Provider | Source | Notes |
 | --- | --- | --- |
@@ -74,7 +74,10 @@ notification bookkeeping key in UserDefaults).
 | **Notion AI** | Notion.app Cookies + Keychain `Notion Safe Storage` → `app.notion.com/api/v3/getCreditRateLimitStatus` (+ `getAIUsageEligibilityV2` for credits) | Decrypts the desktop app's `token_v2` session cookie (via `/usr/bin/security`, same prompt avoidance as Claude). Tracks the fixed 6-hour and monthly AI usage allowance on Business/Enterprise, plus Notion credits balance. These are Notion's private web APIs — not the public Connection/PAT surface — and can change without notice. |
 | **Antigravity** | Running `agy` loopback, else Keychain `gemini`/`antigravity` → `cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary` | Gemini and Claude/GPT each have a weekly + 5-hour window, the same groups `/usage` shows. Prefers the CLI's local language server when `agy` is open (no CSRF, self-signed loopback). Otherwise reuses the consumer OAuth session `agy` already stored (`go-keyring-base64` blob, read via `/usr/bin/security`). Access tokens last about an hour; respawken refreshes them and writes the rotated tokens back so the CLI stays in sync. |
 
-Providers are polled every 2 minutes, concurrently, with a 12-second timeout each. The cadence
+Providers are polled every 2 minutes, concurrently, with a 12-second timeout each. Claude
+has a separate minimum interval of 5 minutes per account, including manual refreshes,
+`--probe`, and `--preview`. Its requests are serialized across Respawken processes, and
+renewal metadata is cached for 24 hours. The general cadence
 drops to 30 seconds only while a window is still burning (**90–98%**) or a reset is within
 10 minutes — sitting at 99–100% with hours left stays on the 2-minute poll. One provider
 being slow or signed out never blocks the others.
@@ -116,7 +119,11 @@ session. Cloudflare on that host bans non-CLI user agents, so the request uses t
 `claude` version string as its User-Agent.
 
 **429s are treated as soft failures.** A rate-limited poll keeps the last good reading instead of
-blanking the provider.
+blanking the provider. Claude also pauses all its accounts for at least 15 minutes after a
+429, doubling that wait after repeated failures up to 6 hours. A longer `Retry-After` is
+always honored. The cooldown survives restarts and is shared with diagnostics; its file
+stores only timing and renewal metadata, never credentials. An unreadable cooldown file
+pauses Claude requests instead of allowing them through.
 
 ## Layout
 

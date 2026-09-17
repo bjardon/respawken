@@ -80,6 +80,26 @@ struct ClaudeProvider: UsageProvider {
     }
 
     func fetch() async -> ProviderOutcome {
+        do {
+            let polling = try await ClaudePolling.acquire(account: account.resolvedConfigDir ?? "~/.claude")
+            try polling.reserve()
+            do {
+                let outcome = try await fetch(polling: polling)
+                if case .ok = outcome { try polling.succeeded() }
+                return outcome
+            } catch {
+                if let failure = error as? HTTP.Failure, failure.status == 429 {
+                    try polling.rateLimited(retryAt: failure.retryAt)
+                    return .failed(ClaudePolling.Paused.rateLimited.localizedDescription, transient: true)
+                }
+                return mapUsageError(error)
+            }
+        } catch {
+            return .failed(error.localizedDescription, transient: true)
+        }
+    }
+
+    private func fetch(polling: ClaudePolling) async throws -> ProviderOutcome {
         guard var credentials = await loadCredentials() else {
             return .signedOut("Run `claude auth login` (\(account.label))")
         }
@@ -88,21 +108,15 @@ struct ClaudeProvider: UsageProvider {
         }
 
         if credentials.isExpiredOrNearExpiry {
-            if let outcome = mapRefresh(await refresh(&credentials)) { return outcome }
+            if let outcome = mapRefresh(try await refresh(&credentials)) { return outcome }
         }
 
         do {
-            return .ok(try await snapshot(token: credentials.accessToken, credentials: credentials))
-        } catch let failure as HTTP.Failure where failure.status == 401 || failure.status == 403 {
+            return .ok(try await snapshot(token: credentials.accessToken, credentials: credentials, polling: polling))
+        } catch let failure as HTTP.Failure where failure.status == 401 {
             // Token may have been revoked mid-flight; try one refresh before asking the user.
-            if let outcome = mapRefresh(await refresh(&credentials)) { return outcome }
-            do {
-                return .ok(try await snapshot(token: credentials.accessToken, credentials: credentials))
-            } catch {
-                return mapUsageError(error)
-            }
-        } catch {
-            return mapUsageError(error)
+            if let outcome = mapRefresh(try await refresh(&credentials)) { return outcome }
+            return .ok(try await snapshot(token: credentials.accessToken, credentials: credentials, polling: polling))
         }
     }
 
@@ -119,8 +133,8 @@ struct ClaudeProvider: UsageProvider {
         ])
     }
 
-    private func fetchProfile(token: String) async -> [String: Any]? {
-        try? await HTTP.getJSON("https://api.anthropic.com/api/oauth/profile", headers: [
+    private func fetchProfile(token: String) async throws -> [String: Any] {
+        try await HTTP.getJSON("https://api.anthropic.com/api/oauth/profile", headers: [
             "Authorization": "Bearer \(token)",
             "anthropic-beta": "oauth-2025-04-20",
             "Accept": "application/json",
@@ -128,10 +142,24 @@ struct ClaudeProvider: UsageProvider {
         ])
     }
 
-    private func snapshot(token: String, credentials: Credentials) async throws -> ProviderSnapshot {
-        async let usage = fetchUsage(token: token)
-        async let profile = fetchProfile(token: token)
-        return parse(try await usage, credentials: credentials, profile: await profile)
+    private func snapshot(token: String, credentials: Credentials, polling: ClaudePolling) async throws -> ProviderSnapshot {
+        // Do not send the optional profile request if usage was rejected.
+        let usage = try await fetchUsage(token: token)
+        if try polling.reserveProfile() {
+            var created: Date?
+            var receivedProfile = false
+            do {
+                let profile = try await fetchProfile(token: token)
+                created = profile.dict("organization")?.date("subscription_created_at")
+                receivedProfile = true
+            } catch let failure as HTTP.Failure where failure.status == 429 {
+                try polling.rateLimited(retryAt: failure.retryAt)
+            } catch {
+                // Renewal metadata is optional; keep the last cached date on failure.
+            }
+            if receivedProfile { try polling.cacheSubscription(created) }
+        }
+        return parse(usage, credentials: credentials, subscriptionCreatedAt: polling.subscriptionCreatedAt)
     }
 
     // MARK: - OAuth refresh
@@ -142,7 +170,7 @@ struct ClaudeProvider: UsageProvider {
         case failed(String, transient: Bool = false)
     }
 
-    private func refresh(_ credentials: inout Credentials) async -> RefreshResult {
+    private func refresh(_ credentials: inout Credentials) async throws -> RefreshResult {
         guard let refreshToken = credentials.refreshToken, !refreshToken.isEmpty else {
             return .signedOut("Session expired — run `claude auth login`")
         }
@@ -177,6 +205,8 @@ struct ClaudeProvider: UsageProvider {
             persist(credentials)
             await CredentialCache.shared.replace(credentials)
             return .ok
+        } catch let failure as HTTP.Failure where failure.status == 429 {
+            throw failure
         } catch let failure as HTTP.Failure where failure.status == 400 || failure.status == 401 {
             // invalid_grant / revoked refresh token — only a fresh login helps.
             return .signedOut("Session expired — run `claude auth login`")
@@ -346,9 +376,10 @@ struct ClaudeProvider: UsageProvider {
     private func parse(
         _ json: [String: Any],
         credentials: Credentials,
-        profile: [String: Any]?
+        subscriptionCreatedAt: Date?
     ) -> ProviderSnapshot {
-        // The parallel `limits` array is the only place that says whether a window is running.
+        // `is_active` can be false even for a window with usage and a reset.
+        // Use it only as a fallback when the reading has neither.
         var activeByKind: [String: Bool] = [:]
         for limit in json["limits"] as? [[String: Any]] ?? [] {
             if let kind = limit.string("kind") {
@@ -361,12 +392,13 @@ struct ClaudeProvider: UsageProvider {
             guard let node = json.dict(entry.key),
                   let used = node.number("utilization", "used_percent", "usedPercent", "percent_used")
             else { continue }
+            let resets = node.date("resets_at", "reset_at", "resetsAt")
             windows.append(UsageWindow(
                 id: entry.key,
                 title: entry.title,
                 usedPercent: used,
-                resetsAt: node.date("resets_at", "reset_at", "resetsAt"),
-                isActive: activeByKind[entry.kind] ?? true,
+                resetsAt: resets,
+                isActive: used > 0 || resets != nil || (activeByKind[entry.kind] ?? true),
                 duration: Self.duration(for: entry.key)
             ))
         }
@@ -380,7 +412,7 @@ struct ClaudeProvider: UsageProvider {
         }
 
         var renewsAt: Date?
-        if let created = profile?.dict("organization")?.date("subscription_created_at") {
+        if let created = subscriptionCreatedAt {
             renewsAt = Format.nextMonthly(from: created)
         }
 
@@ -441,12 +473,13 @@ struct ClaudeProvider: UsageProvider {
     private func usageWindow(id: String, title: String, from node: [String: Any]) -> UsageWindow? {
         guard let used = node.number("percent", "utilization", "used_percent", "usedPercent", "percent_used")
         else { return nil }
+        let resets = node.date("resets_at", "reset_at", "resetsAt")
         return UsageWindow(
             id: id,
             title: title,
             usedPercent: used,
-            resetsAt: node.date("resets_at", "reset_at", "resetsAt"),
-            isActive: node["is_active"] as? Bool ?? true,
+            resetsAt: resets,
+            isActive: used > 0 || resets != nil || (node["is_active"] as? Bool ?? true),
             duration: Self.duration(for: id)
         )
     }
