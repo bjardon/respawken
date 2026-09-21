@@ -86,6 +86,9 @@
 - [x] Banner clicks stay on one Respawken — NC used to `open` `/Applications` as a
       second instance. Click opens the panel. `./build.sh --install` is the daily
       driver (banners and login); `--run` stays on `dist/` for iterating.
+- [x] **Panel keyboard** — ↑/↓ highlight the clickable controls (Overview rows,
+      back, gear, refresh, Quit); Enter activates; Esc goes back, or closes the
+      panel on Overview. Hover uses the same highlight.
 
 ## Known gaps
 
@@ -108,7 +111,6 @@
 
 - [ ] Remember the last good reading across restarts, so the panel isn't empty on launch
 - [ ] Reorder Claude accounts in Settings (drag or up/down)
-- [ ] Hover states on the other panel controls (back, gear, refresh, Quit)
 - [ ] Make the Overview a bit more compact
 - [ ] Richer product drill-downs — Claude's unproven Opus/Sonnet/Cowork weekly
       windows

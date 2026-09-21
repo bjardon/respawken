@@ -30,10 +30,119 @@ enum PanelTab: String, CaseIterable, Identifiable {
     }
 }
 
+/// Clickable panel controls, in visual order (header → rows → Quit).
+private enum PanelItem: Hashable {
+    case back, settings, refresh, overview(ProviderID), quit
+}
+
+/// Class so arrow-key repeats see the latest highlight, not a stale @State copy.
+@MainActor
+private final class PanelNav: ObservableObject {
+    @Published var tab: PanelTab
+    @Published var highlight: PanelItem?
+    @Published var openedFrom: ProviderID?
+
+    init(tab: PanelTab = .overview) {
+        self.tab = tab
+    }
+
+    func reset() {
+        tab = .overview
+        highlight = nil
+        openedFrom = nil
+    }
+
+    func items(iconOrder: [ProviderID], refreshing: Bool) -> [PanelItem] {
+        var items: [PanelItem] = []
+        if tab != .overview { items.append(.back) }
+        items.append(.settings)
+        if !refreshing { items.append(.refresh) }
+        if tab == .overview {
+            items.append(contentsOf: iconOrder.map { .overview($0) })
+        }
+        items.append(.quit)
+        return items
+    }
+
+    func move(_ delta: Int, iconOrder: [ProviderID], refreshing: Bool) {
+        let items = items(iconOrder: iconOrder, refreshing: refreshing)
+        guard !items.isEmpty else { return }
+        if let highlight, let index = items.firstIndex(of: highlight) {
+            self.highlight = items[(index + delta % items.count + items.count) % items.count]
+            return
+        }
+        if delta > 0 {
+            highlight = items.first {
+                switch $0 {
+                case .overview, .back: return true
+                default: return false
+                }
+            } ?? items.first
+        } else {
+            highlight = items.last
+        }
+    }
+
+    func openProduct(_ provider: ProviderID, fromKeyboard: Bool) {
+        openedFrom = provider
+        tab = .product(for: provider)
+        highlight = fromKeyboard ? .back : nil
+    }
+
+    func goBack(iconOrder: [ProviderID]) {
+        tab = .overview
+        if let openedFrom, iconOrder.contains(openedFrom) {
+            highlight = .overview(openedFrom)
+        } else {
+            highlight = nil
+        }
+    }
+
+    func handleKey(
+        _ event: NSEvent,
+        iconOrder: [ProviderID],
+        refreshing: Bool,
+        activate: (PanelItem) -> Void,
+        dismiss: () -> Void
+    ) -> Bool {
+        let mods = event.modifierFlags.intersection([.command, .option, .control, .shift])
+        guard mods.isEmpty else { return false }
+        switch event.keyCode {
+        case 125:
+            move(1, iconOrder: iconOrder, refreshing: refreshing)
+            return true
+        case 126:
+            move(-1, iconOrder: iconOrder, refreshing: refreshing)
+            return true
+        case 36, 76:
+            guard let highlight else { return false }
+            activate(highlight)
+            return true
+        case 53:
+            if tab != .overview {
+                goBack(iconOrder: iconOrder)
+            } else {
+                dismiss()
+            }
+            return true
+        default:
+            return false
+        }
+    }
+}
+
 struct PanelView: View {
     @ObservedObject var store: UsageStore
+    @StateObject private var nav: PanelNav
     @Environment(\.openWindow) private var openWindow
-    @State var tab: PanelTab = .overview
+
+    init(store: UsageStore, tab: PanelTab = .overview) {
+        self.store = store
+        _nav = StateObject(wrappedValue: PanelNav(tab: tab))
+    }
+
+    private var tab: PanelTab { nav.tab }
+    private var highlight: PanelItem? { nav.highlight }
 
     var body: some View {
         let _ = store.settings.language
@@ -59,13 +168,23 @@ struct PanelView: View {
         }
         .frame(width: 320)
         .fixedSize(horizontal: false, vertical: true)
+        .onChange(of: store.isRefreshing) { _, refreshing in
+            if refreshing, nav.highlight == .refresh { nav.highlight = .settings }
+        }
+        .onChange(of: store.iconOrder) { _, order in
+            if let highlight, !nav.items(iconOrder: order, refreshing: store.isRefreshing).contains(highlight) {
+                nav.highlight = nil
+            }
+        }
         .background(
             GeometryReader { geometry in
                 // ImageRenderer cannot draw an AppKit view. In the live panel it
                 // must stay attached to the window for sizing and open callbacks.
                 if !CommandLine.arguments.contains("--preview") {
-                    ResetOverviewOnOpen(contentSize: geometry.size) { tab = .overview }
-                        .frame(width: 0, height: 0)
+                    ResetOverviewOnOpen(contentSize: geometry.size, onKeyDown: handleKey) {
+                        nav.reset()
+                    }
+                    .frame(width: 0, height: 0)
                 }
             }
         )
@@ -78,7 +197,7 @@ struct PanelView: View {
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
             } else {
                 Button {
-                    tab = .overview
+                    nav.goBack(iconOrder: store.iconOrder)
                 } label: {
                     HStack(spacing: 3) {
                         Image(systemName: "chevron.left")
@@ -87,28 +206,30 @@ struct PanelView: View {
                             .font(.system(size: 13, weight: .semibold, design: .rounded))
                     }
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(ChromeButtonStyle(highlighted: highlight == .back))
                 .help(L10n.t(.backToOverview))
+                .onHover { if $0 { nav.highlight = .back } }
             }
             Spacer()
             Button {
-                openWindow(id: "settings")
-                NSApp.activate(ignoringOtherApps: true)
+                openSettings()
             } label: {
                 Image(systemName: "gearshape").font(.system(size: 11, weight: .medium))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(ChromeButtonStyle(highlighted: highlight == .settings))
             .help(L10n.t(.settings))
+            .onHover { if $0 { nav.highlight = .settings } }
             if store.isRefreshing {
                 ProgressView().controlSize(.small).scaleEffect(0.7).frame(width: 14, height: 14)
             } else {
                 Button {
-                    Task { await store.refresh() }
+                    refresh()
                 } label: {
                     Image(systemName: "arrow.clockwise").font(.system(size: 11, weight: .medium))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(ChromeButtonStyle(highlighted: highlight == .refresh))
                 .help(L10n.t(.refreshNow))
+                .onHover { if $0 { nav.highlight = .refresh } }
             }
         }
         .padding(.horizontal, 14)
@@ -127,7 +248,7 @@ struct PanelView: View {
             } else {
                 ForEach(store.iconOrder) { provider in
                     Button {
-                        tab = .product(for: provider)
+                        nav.openProduct(provider, fromKeyboard: false)
                     } label: {
                         OverviewRow(
                             title: store.title(for: provider),
@@ -137,8 +258,9 @@ struct PanelView: View {
                             now: store.tick
                         )
                     }
-                    .buttonStyle(OverviewRowStyle())
+                    .buttonStyle(OverviewRowStyle(highlighted: highlight == .overview(provider)))
                     .help(L10n.t(.openProduct, PanelTab.product(for: provider).title))
+                    .onHover { if $0 { nav.highlight = .overview(provider) } }
                 }
             }
         }
@@ -180,10 +302,11 @@ struct PanelView: View {
                 .font(.system(size: 10))
                 .foregroundStyle(.tertiary)
             Spacer()
-            Button(L10n.t(.quit)) { NSApplication.shared.terminate(nil) }
-                .buttonStyle(.plain)
+            Button(L10n.t(.quit)) { quit() }
+                .buttonStyle(ChromeButtonStyle(highlighted: highlight == .quit))
                 .font(.system(size: 10))
                 .foregroundStyle(.secondary)
+                .onHover { if $0 { nav.highlight = .quit } }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
@@ -195,11 +318,46 @@ struct PanelView: View {
         if elapsed < 60 { return L10n.t(.updatedJustNow) }
         return L10n.t(.updatedAgo, Format.countdown(to: Date(), now: last))
     }
+
+    private func handleKey(_ event: NSEvent) -> Bool {
+        nav.handleKey(
+            event,
+            iconOrder: store.iconOrder,
+            refreshing: store.isRefreshing,
+            activate: activate,
+            dismiss: { PanelToggle.toggle() }
+        )
+    }
+
+    private func activate(_ item: PanelItem) {
+        switch item {
+        case .back: nav.goBack(iconOrder: store.iconOrder)
+        case .settings: openSettings()
+        case .refresh: refresh()
+        case .overview(let provider): nav.openProduct(provider, fromKeyboard: true)
+        case .quit: quit()
+        }
+    }
+
+    private func openSettings() {
+        openWindow(id: "settings")
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    private func refresh() {
+        Task { await store.refresh() }
+    }
+
+    private func quit() {
+        NSApplication.shared.terminate(nil)
+    }
 }
 
 private struct OverviewRowStyle: ButtonStyle {
+    var highlighted: Bool
+
     func makeBody(configuration: Configuration) -> some View {
-        OverviewRowChrome(pressed: configuration.isPressed) {
+        OverviewRowChrome(pressed: configuration.isPressed, highlighted: highlighted) {
             configuration.label
         }
     }
@@ -207,8 +365,8 @@ private struct OverviewRowStyle: ButtonStyle {
 
 private struct OverviewRowChrome<Content: View>: View {
     var pressed: Bool
+    var highlighted: Bool
     @ViewBuilder var content: Content
-    @State private var hovering = false
 
     var body: some View {
         content
@@ -218,9 +376,22 @@ private struct OverviewRowChrome<Content: View>: View {
             .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(Color.primary.opacity(pressed ? 0.10 : hovering ? 0.06 : 0))
+                    .fill(Color.primary.opacity(pressed ? 0.10 : highlighted ? 0.06 : 0))
             )
-            .onHover { hovering = $0 }
+    }
+}
+
+private struct ChromeButtonStyle: ButtonStyle {
+    var highlighted: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .contentShape(Rectangle())
+            .background {
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .fill(Color.primary.opacity(configuration.isPressed ? 0.10 : highlighted ? 0.06 : 0))
+                    .padding(-3)
+            }
     }
 }
 
@@ -534,17 +705,20 @@ private struct Meter: View {
 /// reopen on Claude. Reset on a rising edge of shown/key, not while it stays open.
 private struct ResetOverviewOnOpen: NSViewRepresentable {
     var contentSize: CGSize
+    var onKeyDown: (NSEvent) -> Bool
     var action: () -> Void
 
     func makeNSView(context: Context) -> OpenWatcher {
         let view = OpenWatcher()
         view.contentSize = contentSize
         view.action = action
+        view.onKeyDown = onKeyDown
         return view
     }
 
     func updateNSView(_ view: OpenWatcher, context: Context) {
         view.action = action
+        view.onKeyDown = onKeyDown
         view.contentSize = contentSize
         view.scheduleResize()
     }
@@ -553,14 +727,22 @@ private struct ResetOverviewOnOpen: NSViewRepresentable {
 private final class OpenWatcher: NSView {
     var contentSize: CGSize = .zero
     var action: (() -> Void)?
+    var onKeyDown: ((NSEvent) -> Bool)?
     private var observers: [NSObjectProtocol] = []
+    private var keyMonitor: Any?
     private var wasShown = false
     private var wasKey = false
+
+    override var acceptsFirstResponder: Bool { true }
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         observers.forEach(NotificationCenter.default.removeObserver)
         observers = []
+        if let keyMonitor {
+            NSEvent.removeMonitor(keyMonitor)
+            self.keyMonitor = nil
+        }
         guard let window else { return }
         scheduleResize()
         wasShown = Self.isShown(window)
@@ -576,10 +758,30 @@ private final class OpenWatcher: NSView {
                 self?.shownChanged()
             }
         }
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self, self.shouldHandle(event), self.onKeyDown?(event) == true else {
+                return event
+            }
+            return nil
+        }
     }
 
     deinit {
         observers.forEach(NotificationCenter.default.removeObserver)
+        if let keyMonitor {
+            NSEvent.removeMonitor(keyMonitor)
+        }
+    }
+
+    private func shouldHandle(_ event: NSEvent) -> Bool {
+        guard let window, Self.isShown(window) else { return false }
+        if let key = NSApp.keyWindow,
+           key !== window,
+           !key.className.contains("MenuBarExtra"),
+           !key.className.contains("NSStatusBar") {
+            return false
+        }
+        return true
     }
 
     func scheduleResize() {
@@ -602,6 +804,7 @@ private final class OpenWatcher: NSView {
         let key = window.isKeyWindow
         if (shown && !wasShown) || (key && !wasKey) {
             action?()
+            window.makeFirstResponder(self)
         }
         wasShown = shown
         wasKey = key
