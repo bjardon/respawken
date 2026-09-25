@@ -94,6 +94,19 @@ struct SettingsView: View {
                 }
 
                 Section {
+                    Picker(selection: Binding(
+                        get: { store.settings.iconStyle },
+                        set: { store.updateIconStyle($0) }
+                    )) {
+                        Text(L10n.t(.iconStyleMeters)).tag(MenuBarIconStyle.meters)
+                        Text(L10n.t(.iconStyleStatus)).tag(MenuBarIconStyle.status)
+                        Text(L10n.t(.iconStyleAppIcon)).tag(MenuBarIconStyle.appIcon)
+                    } label: {
+                        EmptyView()
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+
                     ForEach(store.providerOrder) { provider in
                         IconProviderEditor(
                             title: store.title(for: provider),

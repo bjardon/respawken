@@ -37,6 +37,18 @@ struct ProviderIconPrefs: Codable, Equatable, Sendable {
     static let `default` = ProviderIconPrefs(showOnIcon: true, windowID: nil, color: nil)
 }
 
+/// How the menu bar icon is drawn.
+enum MenuBarIconStyle: String, Codable, CaseIterable, Identifiable, Sendable {
+    /// Stacked meters that fill with utilization.
+    case meters
+    /// Same stack, but each meter is one solid severity colour.
+    case status
+    /// Monotone app icon; the ring dims from the top as the fullest pinned window fills.
+    case appIcon
+
+    var id: String { rawValue }
+}
+
 /// Persisted app preferences.
 struct AppSettings: Codable, Equatable, Sendable {
     var claudeAccounts: [ClaudeAccount]
@@ -45,6 +57,7 @@ struct AppSettings: Codable, Equatable, Sendable {
     var language: AppLanguage
     /// `nil` means the shortcut is off. Missing from disk still gets the default.
     var panelShortcut: KeyCombo?
+    var iconStyle: MenuBarIconStyle = .meters
 
     static var `default`: AppSettings {
         AppSettings(
@@ -63,6 +76,7 @@ struct AppSettings: Codable, Equatable, Sendable {
         case providerIconPrefs
         case language
         case panelShortcut
+        case iconStyle
     }
 
     init(
@@ -87,6 +101,7 @@ struct AppSettings: Codable, Equatable, Sendable {
         } else {
             panelShortcut = .defaultPanelToggle
         }
+        iconStyle = try container.decodeIfPresent(MenuBarIconStyle.self, forKey: .iconStyle) ?? .meters
     }
 
     func encode(to encoder: Encoder) throws {
@@ -95,6 +110,7 @@ struct AppSettings: Codable, Equatable, Sendable {
         try container.encode(providerIconPrefs, forKey: .providerIconPrefs)
         try container.encode(language, forKey: .language)
         try container.encode(panelShortcut, forKey: .panelShortcut)
+        try container.encode(iconStyle, forKey: .iconStyle)
     }
 
     func prefs(for provider: ProviderID) -> ProviderIconPrefs {

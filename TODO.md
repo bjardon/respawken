@@ -89,6 +89,10 @@
 - [x] **Panel keyboard** — ↑/↓ highlight the clickable controls (Overview rows,
       back, gear, refresh, Quit); Enter activates; Esc goes back, or closes the
       panel on Overview. Hover uses the same highlight.
+- [x] **Menu bar icon style** — Settings → Menu bar icon picks Meters (default),
+      Status (solid severity pills, no fill), or App Icon (monotone template ring
+      that dims clockwise as the fullest pinned window fills). `--preview` writes
+      all three at 2×.
 
 ## Known gaps
 
@@ -112,5 +116,6 @@
 - [ ] Remember the last good reading across restarts, so the panel isn't empty on launch
 - [ ] Reorder Claude accounts in Settings (drag or up/down)
 - [ ] Make the Overview a bit more compact
+- [ ] Settle the menu bar icon style after a few days of use: keep one, or keep the picker
 - [ ] Richer product drill-downs — Claude's unproven Opus/Sonnet/Cowork weekly
       windows

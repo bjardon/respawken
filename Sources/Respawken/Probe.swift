@@ -101,8 +101,11 @@ enum Probe {
                     : output.replacingOccurrences(of: ".png", with: "-\(tab.rawValue).png")
                 write(renderer.nsImage, to: path, label: "panel \(tab.title)")
             }
-            write(MenuBarIcon.render(store: store),
-                  to: output.replacingOccurrences(of: ".png", with: "-icon.png"), label: "icon")
+            for style in MenuBarIconStyle.allCases {
+                write(retina(MenuBarIcon.render(store: store, style: style)),
+                      to: output.replacingOccurrences(of: ".png", with: "-icon-\(style.rawValue).png"),
+                      label: "icon \(style.rawValue)")
+            }
         }
         exit(0)
     }
@@ -128,6 +131,23 @@ enum Probe {
 
         done.wait()
         return box.value
+    }
+
+    /// Redraws a vector icon at 2× so the PNG matches what a Retina menu bar shows.
+    private static func retina(_ image: NSImage) -> NSImage? {
+        guard let rep = NSBitmapImageRep(
+            bitmapDataPlanes: nil, pixelsWide: Int(image.size.width * 2), pixelsHigh: Int(image.size.height * 2),
+            bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+            colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0
+        ) else { return nil }
+        rep.size = image.size
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+        image.draw(in: NSRect(origin: .zero, size: image.size))
+        NSGraphicsContext.restoreGraphicsState()
+        let out = NSImage(size: image.size)
+        out.addRepresentation(rep)
+        return out
     }
 
     private static func write(_ image: NSImage?, to path: String, label: String) {

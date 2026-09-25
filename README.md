@@ -19,7 +19,9 @@ Native Swift/SwiftUI, no Dock icon, ~22 MB resident, idle at 0% CPU.
 The menu bar icon is stacked meters — configured Claude accounts, then Codex, Cursor,
 Notion AI, and Antigravity, top to bottom. Fill is utilization, colour is severity (green / amber / red). A
 provider that is signed out or failing renders as an empty outline, so a missing reading never
-looks like a healthy zero.
+looks like a healthy zero. Settings → Menu bar icon can switch to **Status** (each meter is
+one solid severity colour) or **App Icon** (a monotone ring that dims as the fullest pinned
+window fills).
 
 Open the menu extra for a labeled Overview of those same meters. Click a row
 to see that product's full windows (Claude stacks every account). The panel

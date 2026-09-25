@@ -137,6 +137,12 @@ final class UsageStore: ObservableObject {
         return PanelHotKey.shared.install(combo)
     }
 
+    func updateIconStyle(_ style: MenuBarIconStyle) {
+        guard settings.iconStyle != style else { return }
+        settings.iconStyle = style
+        settings.save()
+    }
+
     func updateIconPrefs(_ prefs: ProviderIconPrefs, for provider: ProviderID) {
         var next = settings
         let current = next.prefs(for: provider)

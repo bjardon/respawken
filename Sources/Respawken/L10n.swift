@@ -145,6 +145,9 @@ enum L10n {
         case claudeAccountsFooter
         case menuBarIcon
         case menuBarIconFooter
+        case iconStyleMeters
+        case iconStyleStatus
+        case iconStyleAppIcon
         case sendTestNotification
         case testNotificationSent
         case testNotificationOff
@@ -271,6 +274,9 @@ enum L10n {
             .english: "Panel order is icon order. Up to %d shown providers appear on the icon; fewer collapse to a single column.",
             .spanish: "El orden del panel es el del icono. Hasta %d proveedores visibles aparecen en el icono; si hay menos, se agrupan en una sola columna.",
         ],
+        .iconStyleMeters: [.english: "Meters", .spanish: "Medidores"],
+        .iconStyleStatus: [.english: "Status", .spanish: "Estado"],
+        .iconStyleAppIcon: [.english: "App Icon", .spanish: "Icono de la app"],
         .sendTestNotification: [.english: "Send Test Notification", .spanish: "Enviar notificación de prueba"],
         .testNotificationSent: [
             .english: "Sent — check Notification Center.",
