@@ -2,120 +2,121 @@
 
 ## Working
 
-- [x] Claude pace indicators use reported usage and reset times even when `is_active` is false.
-- [x] Claude polling has a 5-minute minimum per account and a persistent, shared 429
-      cooldown across the app, manual refreshes, probes, and previews. Honor `Retry-After`,
-      increase waits after repeated failures, and cache renewal metadata for 24 hours.
-- [x] All product screens resize the native panel to their content; returning to Overview
-      restores its height without leaving empty margins.
-- [x] Reuse unchanged menu bar images; fetch Notion allowance and credits concurrently.
-      Polling frequency stays unchanged; memory and energy gains are not measured.
-- [x] Codex log fallback reads stay bounded during appends and tolerate split UTF-8 characters.
-- [x] Panel PNG exports omit the AppKit opening watcher to avoid the renderer's warning
-      overlay. The live panel keeps it attached for opening and sizing callbacks.
-- [x] Menu bar item showing stacked meters, no Dock icon
-- [x] Dropdown panel with per-window usage, plan, and reset countdown
-- [x] **Overview + product drill-down** — panel opens on one meter per icon slot
-      (the window that drives the menu bar); click a row for that product's full
-      windows. Claude stacks every account on one product page. Reopens on Overview.
-      Hover highlights Overview rows. Tabs were tried and dropped.
-- [x] **Codex** — live usage, plan, 5-hour session + weekly windows, reset countdown;
-      banked reset credits from `rate_limit_reset_credits` when `available_count` > 0
-- [x] **Codex** — offline fallback to the newest session log (`sessions` or
-      `archived_sessions`) when the API is unreachable
-- [x] **Codex** — OAuth auto-refresh — expired access tokens refresh without re-login
-- [x] **Codex** — 401 / expired-token fallback note (not the generic "API unreachable")
-- [x] **Cursor** — live usage, plan, billing-cycle reset, on-demand spend
-- [x] **Cursor** — labels match Plan & Usage (Cursor Models / Other Models); note uses
-      percent gates, not the dollar `used`/`limit` ledger (that was a false "on bonus")
-- [x] **Claude Code** — live session and weekly windows, plan, reset countdown
-- [x] **Claude Code** — Personal + Work accounts as separate top-level rows / meters
-- [x] An idle Claude session window reads "not started" rather than a bare 0%
-- [x] Signed-out and error states that read as "no data", not "0% used"
-- [x] Auto-refresh every 2 minutes (30s while a window is still burning 90–98%, or a
-      reset is within 10 minutes) + manual refresh; countdowns tick every minute
-- [x] Exhaustion notification fires once per window until usage drops back under 90%
-      (Claude's jittery `resets_at` no longer re-triggers "on fumes")
-- [x] **Language** — Settings picker for English / Español; panel, Settings, and
-      notifications switch instantly from an in-app catalog
-- [x] `--probe` (print live values) and `--preview` (render the UI to a PNG)
-- [x] `build.sh` producing a signed `Respawken.app`
-- [x] No Keychain password prompt, on any build — Claude's secret is read via `/usr/bin/security`
-- [x] Claude OAuth auto-refresh — expired access tokens refresh overnight without re-login
-- [x] Transient failures (429) keep the last good reading instead of blanking the panel
-- [x] Native Notification Center alerts at ≥98% usage, when a long window is on
-      track to empty before reset, and when a window's reset time fires
-- [x] **Claude accounts settings** — gear opens a Settings window; add / rename / remove
-      accounts with label + config dir; persisted to Application Support; panel and
-      menu bar rebuild from that list. Codex and Cursor stay single-source.
-- [x] **Notion AI** — fixed 6-hour + monthly usage allowance from Notion.app session;
-      Notion credits balance / monthly credits window via private `/api/v3` endpoints
-- [x] **Google Antigravity** — Gemini + Claude/GPT weekly and 5-hour windows from `agy`
-      OAuth (Keychain) or the running CLI's local `/usage` server
-- [x] **App icon** — cooldown-ring + token core; `Resources/AppIcon.icon` (Icon Composer
-      stack for macOS 26) + legacy `Assets.xcassets`; `build.sh` compiles `Assets.car` via
-      `actool`, sets `CFBundleIconName`, and ships a full `.icns`. Bundle id bumped to
-      `com.bjardon.respawken.app` so NC drops the blank icon cached from pre-icon builds.
-      Settings → Send Test Notification (and `--test-notification`) to verify the banner icon.
-- [x] Notification copy — wry titles with one emoji each + composed sentence bodies
-      (`🔥 Running on fumes` / `⏳ Ahead of pace` / `✨ Fresh limits` / `👋 Still here`)
-- [x] Launch at login — first launch registers via `SMAppService`; Settings toggle can undo it;
-      later launches don't re-register if it was turned off
-- [x] **Keyboard shortcut** — global hotkey toggles the panel (default ⌃⌥U);
-      Settings → Keyboard to change or clear it. No Accessibility permission.
-- [x] **Subscription renewal date** — product pages show a dedicated `Renews:` row
-      for the paid plan (not the usage-window reset). Claude from
-      `subscription_created_at`, Codex from the ChatGPT id-token period, Cursor
-      and Notion from their billing-cycle end.
-- [x] **Claude usage credits** — extra budget from `/api/oauth/usage` (`spend`,
-      with legacy `extra_usage` as fallback). Meter + `$used / $limit` on the
-      product page when the org has a positive cap; a `$0` limit is note-only.
-- [x] **Claude Fable** — weekly nested cap from `/api/oauth/usage` `limits[]`
-      (`weekly_scoped` / display_name Fable). Pin-able.
-- [x] Dropped **Now burning** — Claude and Notion pin session / 6-hour again.
-      Leftover `now_burning` settings fall back to that.
-- [x] **Burn pace** — every window with a duration and reset projects cycle-average
-      burn. Panel meters show an expected tick plus `below pace` / `on pace` /
-      `empties in …`. One wry notification per cycle when a weekly/monthly window
-      is ahead (`⏳ Ahead of pace`); session, 6-hour, and Notion credits stay off
-      that path. Menu bar is unchanged.
-- [x] Overview `resets in …` falls back to the soonest sibling window, or the plan
-      renewal, when the metered window has no countdown (credits, idle Notion 6-hour).
-- [x] **Cursor on-demand** — when enabled, a third window plus `On-demand: $0 / $10`
-      (cents from `individualUsage.onDemand`). Static pick in Settings.
-- [x] Banner clicks stay on one Respawken — NC used to `open` `/Applications` as a
-      second instance. Click opens the panel. `./build.sh --install` is the daily
-      driver (banners and login); `--run` stays on `dist/` for iterating.
-- [x] **Panel keyboard** — ↑/↓ highlight the clickable controls (Overview rows,
-      back, gear, refresh, Quit); Enter activates; Esc goes back, or closes the
-      panel on Overview. Hover uses the same highlight.
-- [x] **Menu bar icon style** — Settings → Menu bar icon picks Meters (default),
-      Status (solid severity pills, no fill), or App Icon (monotone template ring
-      that dims clockwise as the fullest pinned window fills). `--preview` writes
-      all three at 2×.
+- [x] Claude pace uses reported usage and reset times even when `is_active` is false.
+- [x] Claude polls each account at most every 5 minutes. The app, manual refreshes, probes,
+      and previews share one persistent 429 cooldown. It honors `Retry-After`, waits longer
+      after repeated failures, and caches renewal metadata for 24 hours.
+- [x] Every product screen resizes the native panel to fit. Going back to Overview restores
+      its height with no empty margin.
+- [x] Menu bar images are reused when nothing changed. Notion allowance and credits load
+      in parallel. Polling frequency is unchanged. Memory and energy gains aren't measured.
+- [x] Codex log fallback reads stay bounded while the log grows and handle UTF-8 characters
+      split across reads.
+- [x] Panel PNG exports leave out the AppKit opening watcher, which otherwise makes the
+      renderer draw a warning overlay. The live panel keeps it for opening and sizing.
+- [x] Menu bar icon with stacked meters, no Dock icon
+- [x] Panel with usage, plan, and reset countdown for each window
+- [x] **Overview and product screens.** The panel opens on Overview, one meter per icon
+      slot, each showing the pinned window. Click an Overview row for that product's
+      screen. Claude puts every account on one screen. The panel reopens on Overview.
+      Hover highlights Overview rows. I tried tabs and dropped them.
+- [x] **Codex.** Live usage, plan, 5-hour session and weekly windows, reset countdown.
+      Banked reset credits from `rate_limit_reset_credits` when `available_count` > 0.
+- [x] **Codex.** Falls back to the newest session log in `sessions` or `archived_sessions`
+      when the API is unreachable.
+- [x] **Codex.** Expired access tokens refresh through OAuth, no re-login.
+- [x] **Codex.** A 401 or expired token gets its own note instead of the generic "API unreachable".
+- [x] **Cursor.** Live usage, plan, billing-cycle reset, on-demand spend.
+- [x] **Cursor.** Labels match Plan & Usage: Cursor Models and Other Models. The note uses
+      the percent gates. The dollar `used`/`limit` ledger produced a false "on bonus".
+- [x] **Claude Code.** Live session and weekly windows, plan, reset countdown.
+- [x] **Claude Code.** Personal and Work each get their own Overview row and meter.
+- [x] An idle Claude session window reads "not started" instead of a bare 0%.
+- [x] Signed-out and error states read as "no data", not "0% used".
+- [x] Refresh every 2 minutes, or every 30s while a window sits at 90–98% or a reset is
+      under 10 minutes away. Manual refresh too. Countdowns tick every minute.
+- [x] The "on fumes" notification fires once per window until usage drops below 90%.
+      Claude's jittery `resets_at` no longer re-triggers it.
+- [x] **Language.** Settings picks English or Español. The panel, Settings, and
+      notifications switch instantly from an in-app catalog.
+- [x] `--probe` prints live values and `--preview` renders the UI to a PNG.
+- [x] `build.sh` produces a signed `Respawken.app`.
+- [x] No Keychain password prompt on any build. Claude's secret comes from `/usr/bin/security`.
+- [x] Claude OAuth refresh. Expired access tokens refresh overnight without re-login.
+- [x] A 429 keeps the last good reading instead of blanking the panel.
+- [x] Notification Center alerts at 98% usage, when a long window is on track to run out
+      before its reset, and when a window resets.
+- [x] **Claude accounts in Settings.** The gear opens Settings. Add, rename, or remove
+      accounts with a label and config dir. The list persists to Application Support,
+      and the panel and menu bar icon rebuild from it. Codex and Cursor have one source each.
+- [x] **Notion AI.** The 6-hour and monthly allowance from the Notion.app session, plus the
+      Notion credits balance and monthly credits window, from private `/api/v3` endpoints.
+- [x] **Google Antigravity.** Gemini and Claude/GPT weekly and 5-hour windows, from `agy`'s
+      OAuth session in the Keychain or the running CLI's local `/usage` server.
+- [x] **App icon.** A cooldown ring around a token core. `Resources/AppIcon.icon` is the
+      Icon Composer stack for macOS 26, with a legacy `Assets.xcassets`. `build.sh` compiles
+      `Assets.car` via `actool`, sets `CFBundleIconName`, and ships a full `.icns`. The
+      bundle id moved to `com.bjardon.respawken.app` so Notification Center drops the blank
+      icon it cached from pre-icon builds. Settings → Send Test Notification, or
+      `--test-notification`, checks the banner icon.
+- [x] Notification copy. Each title gets one emoji and some attitude (`🔥 Running on fumes`,
+      `⏳ Ahead of pace`, `✨ Fresh limits`, `👋 Still here`). Each body is one sentence.
+- [x] Launch at login. The first launch registers via `SMAppService`. The Settings toggle
+      undoes it, and later launches respect that.
+- [x] **Keyboard shortcut.** A global hotkey toggles the panel, ⌃⌥U by default. Change or
+      clear it in Settings → Keyboard. No Accessibility permission needed.
+- [x] **Renewal date.** Product screens show a `Renews:` row for the paid plan, separate
+      from any window's reset. Claude uses `subscription_created_at`, Codex the ChatGPT
+      id-token period, Cursor and Notion their billing-cycle end.
+- [x] **Claude usage credits.** Extra budget from `/api/oauth/usage`, read from `spend`
+      with `extra_usage` as the legacy fallback. When the org has a positive cap, the
+      product screen shows a meter and `$used / $limit`. A `$0` limit only gets a note.
+- [x] **Claude Fable.** A weekly cap nested in `/api/oauth/usage` `limits[]`
+      (`weekly_scoped`, display name Fable). You can pin it.
+- [x] Dropped **Now burning**. Claude and Notion pin session and 6-hour again. Old
+      `now_burning` settings fall back to those.
+- [x] **Pace.** Every window with a duration and a reset projects its average burn for
+      the cycle. Panel meters show a tick for expected usage plus `below pace`, `on pace`,
+      or `empties in …`. A weekly or monthly window that runs ahead sends one
+      `⏳ Ahead of pace` notification per cycle. Session, 6-hour, and Notion credits don't.
+      The menu bar icon is unchanged.
+- [x] When the pinned window has no countdown, such as credits or an idle Notion 6-hour,
+      Overview takes `resets in …` from the soonest sibling window or the plan renewal.
+- [x] **Cursor on-demand.** When enabled, a third window plus `On-demand: $0 / $10`,
+      in cents from `individualUsage.onDemand`. Pinned statically in Settings.
+- [x] Banner clicks stay on one Respawken. Notification Center used to `open` the
+      `/Applications` copy as a second instance. A click now opens the panel.
+      `./build.sh --install` is the daily driver for banners and login. `--run` stays on
+      `dist/` for iterating.
+- [x] **Panel keyboard.** ↑/↓ move the highlight across Overview rows, back, gear,
+      refresh, and Quit. Enter activates. Esc goes back, or closes the panel on
+      Overview. Hover uses the same highlight.
+- [x] **Menu bar icon style.** Settings → Menu bar icon picks Meters (default), Status
+      (solid severity pills, no fill), or App Icon (a monotone template ring that dims
+      clockwise as the fullest pinned window fills). `--preview` writes all three at 2×.
 
 ## Known gaps
 
-- Early windows can say "on pace" while ahead of expected usage, before the forecasting
-  thresholds allow an exhaustion estimate.
-- Claude shows no account email — the usage endpoint doesn't return one, unlike Codex and Cursor.
-  Multi-account rows use configured labels (Personal / Work) instead.
-- Claude's Opus/Sonnet/Cowork weekly windows are still `null` on Team. Fable is the
-  scoped weekly that actually arrives, via `limits[]`, not a `seven_day_*` key.
-- Settings has no reorder UI yet — accounts appear in list order; add/remove works.
-- Notion AI uses undocumented `app.notion.com/api/v3` endpoints authenticated with the
-  desktop session cookie; Notion can change them without notice. Multi-workspace accounts
-  currently pick the first Business/Enterprise space Notion returns.
-- Antigravity quota is Cloud Code `v1internal` plus `agy`'s local Connect-RPC; Google can
-  change either without notice. No subscription renewal date is exposed.
-- Cursor Other Models is a sibling included pool (labs / open weights), not a step
-  after Cursor Models. On-demand is the fallback for both. Pin the window in Settings.
+- Early in a window, it can say "on pace" while ahead of expected usage, because the
+  forecast thresholds don't allow an exhaustion estimate yet.
+- Claude shows no account email. The usage endpoint doesn't return one, unlike Codex and
+  Cursor. Claude rows use the configured labels, Personal and Work.
+- Claude's Opus, Sonnet, and Cowork weekly windows are still `null` on Team. Fable is the
+  scoped weekly that does arrive, via `limits[]` rather than a `seven_day_*` key.
+- Settings can't reorder accounts yet. They appear in list order. Add and remove work.
+- Notion AI uses undocumented `app.notion.com/api/v3` endpoints with the desktop session
+  cookie, and Notion can change them without notice. Accounts with several workspaces use
+  the first Business or Enterprise space Notion returns.
+- Antigravity reads Cloud Code `v1internal` and `agy`'s local Connect-RPC. Google can change
+  either without notice. Neither exposes a renewal date.
+- Cursor Other Models is a separate included pool (labs, open weights), not a tier after
+  Cursor Models. On-demand is the fallback for both. Pick the pinned window in Settings.
 
 ## Not done yet
 
 - [ ] Remember the last good reading across restarts, so the panel isn't empty on launch
-- [ ] Reorder Claude accounts in Settings (drag or up/down)
-- [ ] Make the Overview a bit more compact
+- [ ] Reorder Claude accounts in Settings, by drag or up/down buttons
+- [ ] Make Overview a bit more compact
 - [ ] Settle the menu bar icon style after a few days of use: keep one, or keep the picker
-- [ ] Richer product drill-downs — Claude's unproven Opus/Sonnet/Cowork weekly
-      windows
+- [ ] Show Claude's Opus, Sonnet, and Cowork weekly windows on the product screen once
+      they actually arrive
