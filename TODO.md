@@ -27,6 +27,9 @@
 - [x] **Codex.** Expired access tokens refresh through OAuth, no re-login.
 - [x] **Codex.** A 401 or expired token gets its own note instead of the generic "API unreachable".
 - [x] **Cursor.** Live usage, plan, billing-cycle reset, on-demand spend.
+- [x] **Cursor Grok Bot.** Separate weekly allowance from the existing Cursor session,
+      with its own reset and pace. Pinnable in Settings; On-demand stays shared. Live
+      probe and PNG verified, and Bruno confirmed it works from the menu bar.
 - [x] **Cursor.** Labels match Plan & Usage: Cursor Models and Other Models. The note uses
       the percent gates. The dollar `used`/`limit` ledger produced a false "on bonus".
 - [x] **Claude Code.** Live session and weekly windows, plan, reset countdown.
@@ -82,7 +85,7 @@
       The menu bar icon is unchanged.
 - [x] When the pinned window has no countdown, such as credits or an idle Notion 6-hour,
       Overview takes `resets in …` from the soonest sibling window or the plan renewal.
-- [x] **Cursor on-demand.** When enabled, a third window plus `On-demand: $0 / $10`,
+- [x] **Cursor on-demand.** When enabled, a shared window plus `On-demand: $0 / $10`,
       in cents from `individualUsage.onDemand`. Pinned statically in Settings.
 - [x] Banner clicks stay on one Respawken. Notification Center used to `open` the
       `/Applications` copy as a second instance. A click now opens the panel.
@@ -97,10 +100,7 @@
 
 ## Known gaps
 
-- Grok Bot's weekly window under Cursor is accepted. Live `--probe` data and the Cursor
-  PNG are verified. Wrap-up is incomplete pending a check in the running panel; UI
-  automation can't attach to the menu bar app. It uses the existing Cursor session,
-  supports pinning, and keeps the shared On-demand meter. Its private RPC can change.
+- Grok Bot usage uses Cursor's private dashboard RPC, which can change without notice.
 - Early in a window, it can say "on pace" while ahead of expected usage, because the
   forecast thresholds don't allow an exhaustion estimate yet.
 - Claude shows no account email. The usage endpoint doesn't return one, unlike Codex and
