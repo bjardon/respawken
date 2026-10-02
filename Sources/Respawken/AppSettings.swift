@@ -187,6 +187,7 @@ enum IconWindowDefaults {
             return [
                 ("included", L10n.t(.windowCursorModels)),
                 ("api", L10n.t(.windowOtherModels)),
+                ("grok-weekly", L10n.t(.windowGrokWeekly)),
                 ("onDemand", L10n.t(.windowOnDemand)),
             ]
         case ProviderID.notion.rawValue:

@@ -97,6 +97,10 @@
 
 ## Known gaps
 
+- Grok Bot's weekly window under Cursor is accepted. Live `--probe` data and the Cursor
+  PNG are verified. Wrap-up is incomplete pending a check in the running panel; UI
+  automation can't attach to the menu bar app. It uses the existing Cursor session,
+  supports pinning, and keeps the shared On-demand meter. Its private RPC can change.
 - Early in a window, it can say "on pace" while ahead of expected usage, because the
   forecast thresholds don't allow an exhaustion estimate yet.
 - Claude shows no account email. The usage endpoint doesn't return one, unlike Codex and

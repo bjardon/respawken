@@ -51,6 +51,7 @@ enum L10n {
         switch id {
         case "included": return t(.windowCursorModels)
         case "api": return t(.windowOtherModels)
+        case "grok-weekly": return t(.windowGrokWeekly)
         case "onDemand": return t(.windowOnDemand)
         case "monthly": return t(.windowMonthly)
         case "credits": return t(.windowCredits)
@@ -200,6 +201,7 @@ enum L10n {
         case windowWeeklyFable
         case windowCursorModels
         case windowOtherModels
+        case windowGrokWeekly
         case windowOnDemand
         case windowMonthly
         case windowCredits
@@ -347,6 +349,7 @@ enum L10n {
         .windowWeeklyFable: [.english: "Weekly · Fable", .spanish: "Semanal · Fable"],
         .windowCursorModels: [.english: "Cursor Models", .spanish: "Modelos Cursor"],
         .windowOtherModels: [.english: "Other Models", .spanish: "Otros modelos"],
+        .windowGrokWeekly: [.english: "Grok Bot · Weekly", .spanish: "Grok Bot · Semanal"],
         .windowOnDemand: [.english: "On-demand", .spanish: "Bajo demanda"],
         .windowMonthly: [.english: "Monthly", .spanish: "Mensual"],
         .windowCredits: [.english: "Credits", .spanish: "Créditos"],
@@ -402,6 +405,7 @@ enum L10n {
     ]
 
     private static let messages: [String: String] = [
+        "Grok Bot usage unavailable": "Uso de Grok Bot no disponible",
         "Run `codex login`": "Ejecuta `codex login`",
         "Token expired — showing last session": "Token caducado — mostrando la última sesión",
         "Token expired — run `codex login`": "Token caducado — ejecuta `codex login`",

@@ -4,8 +4,8 @@ import Foundation
 /// browser cookie jars, this reads the bearer token Cursor.app already keeps in its own global
 /// state database and rebuilds the web session cookie from it. No Keychain prompt, no browser.
 ///
-/// Cursor bills on a monthly cycle rather than rolling windows, so "resets" means the end of the
-/// current billing period.
+/// Cursor's IDE windows reset at the billing-cycle end. Grok Bot has a separate weekly
+/// allowance, read from Cursor's dashboard RPC with the same bearer token.
 struct CursorProvider: UsageProvider {
     let id = ProviderID.cursor
 
@@ -30,6 +30,7 @@ struct CursorProvider: UsageProvider {
             withAllowedCharacters: CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-._~"))
         ) ?? subject
 
+        async let grokUsage = fetchGrokUsage(token: token)
         do {
             let json = try await HTTP.getJSON(
                 "https://cursor.com/api/usage-summary",
@@ -38,7 +39,8 @@ struct CursorProvider: UsageProvider {
                     "Accept": "application/json",
                 ]
             )
-            return .ok(parse(json))
+            let grok = await grokUsage
+            return .ok(parse(json, grokWindow: grok.window, grokNote: grok.note))
         } catch let failure as HTTP.Failure where failure.status == 401 {
             return .signedOut("Cursor session rejected — sign in again")
         } catch {
@@ -46,7 +48,38 @@ struct CursorProvider: UsageProvider {
         }
     }
 
-    private func parse(_ json: [String: Any]) -> ProviderSnapshot {
+    /// This optional reading must not turn healthy monthly Cursor usage into an error.
+    private func fetchGrokUsage(token: String) async -> (window: UsageWindow?, note: String?) {
+        do {
+            let json = try await HTTP.postJSON(
+                "https://api2.cursor.sh/aiserver.v1.DashboardService/GetSandUsageStatus",
+                headers: [
+                    "Authorization": "Bearer \(token)",
+                    "Connect-Protocol-Version": "1",
+                ],
+                body: [:]
+            )
+            // Enterprise pools and accounts without an included allowance have no
+            // individual weekly meter, matching Grok Bot's own Settings screen.
+            guard !isTrue(json["usesPooledEnterpriseAllowance"]),
+                  isTrue(json["hasNonZeroIncludedLimit"]) else { return (nil, nil) }
+            guard let percent = json.number("usagePercent"), percent.isFinite else {
+                return (nil, "Grok Bot usage unavailable")
+            }
+            let resets = json.date("nextResetTimestampUtc")
+            let start = json.date("currentPeriodStart")
+            let duration: TimeInterval? = {
+                guard let resets, let start, resets > start else { return nil }
+                return resets.timeIntervalSince(start)
+            }()
+            return (UsageWindow(id: "grok-weekly", title: "Grok Bot · Weekly",
+                                usedPercent: max(0, percent), resetsAt: resets, duration: duration), nil)
+        } catch {
+            return (nil, "Grok Bot usage unavailable")
+        }
+    }
+
+    private func parse(_ json: [String: Any], grokWindow: UsageWindow?, grokNote: String?) -> ProviderSnapshot {
         let resets = json.date("billingCycleEnd")
         let cycleStart = json.date("billingCycleStart")
         let duration: TimeInterval? = {
@@ -69,6 +102,7 @@ struct CursorProvider: UsageProvider {
             windows.append(UsageWindow(id: "api", title: "Other Models",
                                        usedPercent: api, resetsAt: resets, duration: duration))
         }
+        if let grokWindow { windows.append(grokWindow) }
 
         var onDemandNote: String?
         if let onDemand = individual?.dict("onDemand"), isTrue(onDemand["enabled"]),
@@ -95,6 +129,8 @@ struct CursorProvider: UsageProvider {
         } else {
             snapshot.note = onDemandNote
         }
+        snapshot.note = [snapshot.note, grokNote].compactMap { $0 }.joined(separator: " · ")
+        if snapshot.note?.isEmpty == true { snapshot.note = nil }
         return snapshot
     }
 
