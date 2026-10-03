@@ -109,6 +109,9 @@ enum L10n {
         if text.hasPrefix("Resets available: ") {
             return t(.resetsAvailablePrefix) + String(text.dropFirst("Resets available: ".count))
         }
+        if text.hasPrefix("next expires in ") {
+            return t(.nextResetExpiresPrefix) + String(text.dropFirst("next expires in ".count))
+        }
         if text.hasPrefix("AI usage allowance not tracked for ") {
             return notionAllowance(text)
         }
@@ -218,6 +221,7 @@ enum L10n {
         case creditsLeftPrefix
         case creditsPrefix
         case resetsAvailablePrefix
+        case nextResetExpiresPrefix
         case notionAllowanceNotTracked
         case sourceLocalSessionLog
 
@@ -372,6 +376,7 @@ enum L10n {
         .creditsLeftPrefix: [.english: "Credits left: ", .spanish: "Créditos restantes: "],
         .creditsPrefix: [.english: "Credits: ", .spanish: "Créditos: "],
         .resetsAvailablePrefix: [.english: "Resets available: ", .spanish: "Reinicios disponibles: "],
+        .nextResetExpiresPrefix: [.english: "next expires in ", .spanish: "el próximo vence en "],
         .notionAllowanceNotTracked: [
             .english: "AI usage allowance not tracked for %@ (%@)",
             .spanish: "El uso de IA de %@ (%@) no se rastrea",

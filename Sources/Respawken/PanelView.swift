@@ -519,7 +519,7 @@ private struct SnapshotBody: View {
 
     var body: some View {
         if snapshot.windows.isEmpty {
-            Text(L10n.display(snapshot.note ?? L10n.t(.noUsageReported)))
+            Text(L10n.display(snapshot.noteWithResetExpiry(now: now) ?? L10n.t(.noUsageReported)))
                 .font(.system(size: 10))
                 .foregroundStyle(.secondary)
         } else {
@@ -535,7 +535,7 @@ private struct SnapshotBody: View {
                     .monospacedDigit()
             }
         }
-        if let note = snapshot.note, !snapshot.windows.isEmpty {
+        if let note = snapshot.noteWithResetExpiry(now: now), !snapshot.windows.isEmpty {
             Text(L10n.display(note))
                 .font(.system(size: 10))
                 .foregroundStyle(.secondary)

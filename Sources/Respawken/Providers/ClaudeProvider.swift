@@ -18,7 +18,8 @@ struct ClaudeProvider: UsageProvider {
     /// Claude Code's public OAuth client id — same one the CLI uses.
     private static let clientID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
     private static let tokenURL = "https://platform.claude.com/v1/oauth/token"
-    private static let usageURL = "https://api.anthropic.com/api/oauth/usage"
+    // Opt into banked reset grants while keeping spend in the same usage response.
+    private static let usageURL = "https://api.anthropic.com/api/oauth/usage?cedar_ember=1"
     /// Refresh a few minutes early so overnight polls don't race the expiry.
     private static let refreshSkew: TimeInterval = 5 * 60
 
@@ -435,11 +436,40 @@ struct ClaudeProvider: UsageProvider {
             renewsAt: renewsAt,
             source: "api"
         )
-        snapshot.note = extraNote
-        if windows.isEmpty {
-            snapshot.note = extraNote ?? "No limit windows reported"
-        }
+        let bankedResets = bankedResets(from: json)
+        let notes = [extraNote, bankedResets?.note].compactMap { $0 }
+        snapshot.note = notes.isEmpty
+            ? (windows.isEmpty ? "No limit windows reported" : nil)
+            : notes.joined(separator: " · ")
+        snapshot.bankedResetExpiresAt = bankedResets?.expiresAt
         return snapshot
+    }
+
+    private func bankedResets(from json: [String: Any]) -> (note: String, expiresAt: Date?)? {
+        guard let resets = json.dict("cedar_ember"),
+              resets["eligible"] as? Bool == true,
+              let grants = resets["grants"] as? [[String: Any]]
+        else { return nil }
+
+        let now = Date()
+        var total = 0
+        var nextExpiry: Date?
+        for grant in grants {
+            guard let count = grant.number("resets_left"), count.isFinite,
+                  count > 0, count.rounded() == count, count < Double(Int.max),
+                  grant["paused"] as? Bool != true
+            else { continue }
+            if let starts = grant.date("starts_at"), starts > now { continue }
+            let ends = grant.date("ends_at")
+            if let ends, ends <= now { continue }
+            // A banked reset can require hitting a limit first; `usable_now` is
+            // about redemption, not how many resets the account has left.
+            let sum = total.addingReportingOverflow(Int(count))
+            guard !sum.overflow else { return nil }
+            total = sum.partialValue
+            if let ends { nextExpiry = min(nextExpiry ?? ends, ends) }
+        }
+        return total > 0 ? ("Resets available: \(total)", nextExpiry) : nil
     }
 
     private struct ExtraUsageReading {

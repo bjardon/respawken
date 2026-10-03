@@ -45,7 +45,7 @@ enum Probe {
                     if let renews = snapshot.renewsAt {
                         print("  renews \(Format.billingDate(renews))")
                     }
-                    if let note = snapshot.note { print("  note: \(note)") }
+                    if let note = snapshot.noteWithResetExpiry() { print("  note: \(note)") }
                 case .signedOut(let hint):
                     print("  signed out — \(hint)")
                 case .failed(let reason, _):

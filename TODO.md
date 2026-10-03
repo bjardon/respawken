@@ -2,6 +2,10 @@
 
 ## Working
 
+- [x] **Claude banked resets.** Product screens show `Resets available: N · next
+      expires in …`, using the soonest expiry among counted grants. Zero, expired,
+      future, and paused grants are hidden. Live probe and PNG verified both accounts;
+      Bruno confirmed the running panel looks and works as expected.
 - [x] Claude pace uses reported usage and reset times even when `is_active` is false.
 - [x] Claude polls each account at most every 5 minutes. The app, manual refreshes, probes,
       and previews share one persistent 429 cooldown. It honors `Retry-After`, waits longer

@@ -243,6 +243,14 @@ struct ProviderSnapshot {
     /// Where the numbers came from, shown in the panel footer of the row.
     var source: String
     var note: String?
+    /// Soonest expiry among the banked resets counted in `note`.
+    var bankedResetExpiresAt: Date? = nil
+
+    func noteWithResetExpiry(now: Date = Date()) -> String? {
+        guard let note else { return nil }
+        guard let expiry = bankedResetExpiresAt, expiry > now else { return note }
+        return note + " · next expires in " + Format.countdown(to: expiry, now: now)
+    }
 }
 
 enum ProviderOutcome {
