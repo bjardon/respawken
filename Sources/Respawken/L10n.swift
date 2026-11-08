@@ -52,6 +52,7 @@ enum L10n {
         case "included": return t(.windowCursorModels)
         case "api": return t(.windowOtherModels)
         case "grok-weekly": return t(.windowGrokWeekly)
+        case "weekly": return t(.windowWeekly)
         case "onDemand": return t(.windowOnDemand)
         case "five_hour": return t(.windowSession5h)
         case "seven_day": return t(.windowWeekly)
@@ -93,6 +94,9 @@ enum L10n {
         }
         if text.hasPrefix("Extra usage: ") {
             return t(.claudeExtraUsagePrefix) + String(text.dropFirst("Extra usage: ".count))
+        }
+        if text.hasPrefix("Credits remaining: ") {
+            return "Créditos restantes: " + String(text.dropFirst("Credits remaining: ".count))
         }
         if text.hasPrefix("On-demand: ") {
             return t(.cursorOnDemandPrefix) + String(text.dropFirst("On-demand: ".count))
@@ -391,6 +395,7 @@ enum L10n {
 
     private static let messages: [String: String] = [
         "Grok Bot usage unavailable": "Uso de Grok Bot no disponible",
+        "Weekly usage unavailable": "Uso semanal no disponible",
         "Run `codex login`": "Ejecuta `codex login`",
         "Token expired — showing last session": "Token caducado — mostrando la última sesión",
         "Token expired — run `codex login`": "Token caducado — ejecuta `codex login`",
@@ -398,6 +403,8 @@ enum L10n {
         "Refresh returned no access token": "La renovación no devolvió un token de acceso",
         "Sign in to Cursor": "Inicia sesión en Cursor",
         "Could not read Cursor session": "No se pudo leer la sesión de Cursor",
+        "Allow Keychain access to Cursor Safe Storage": "Permite el acceso del llavero a Cursor Safe Storage",
+        "Could not decrypt Cursor session": "No se pudo descifrar la sesión de Cursor",
         "Cursor session expired — sign in again": "Sesión de Cursor caducada — vuelve a iniciar sesión",
         "Cursor session rejected — sign in again": "Sesión de Cursor rechazada — vuelve a iniciar sesión",
         "Included usage spent — running on on-demand": "Uso incluido agotado — usando bajo demanda",

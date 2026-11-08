@@ -31,7 +31,7 @@ Work on `~/.claude-oxp`. Settings live in
 `~/Library/Application Support/Respawken/settings.json`.
 
 Each product pins one window onto the icon and Overview: Claude session, Codex 5-hour,
-Cursor Models, and Antigravity Gemini 5-hour. Change the pin in Settings.
+Cursor Weekly (Cursor Models on older plans), and Antigravity Gemini 5-hour. Change the pin in Settings.
 If the pinned window has no reset time, Overview takes `resets in …` from the soonest
 sibling window, or from the plan renewal for usage credits.
 
@@ -67,7 +67,7 @@ timestamps, and renewal metadata locally.
 | Product | Source | Notes |
 | --- | --- | --- |
 | Codex | `~/.codex/auth.json` → `chatgpt.com/backend-api/wham/usage` | Refreshes expired access tokens via `auth.openai.com/oauth/token` and writes the new tokens back, so Codex keeps working. Plus accounts get a 5-hour session window and a weekly one. Weekly-only plans get just the weekly. If the API is unreachable or refresh fails, it reads the `rate_limits` block from the newest log in `~/.codex/sessions` or `archived_sessions`. |
-| Cursor | `state.vscdb` → `cursor.com/api/usage-summary` + `api2.cursor.sh/aiserver.v1.DashboardService/GetSandUsageStatus` | Reuses the bearer token Cursor.app already holds. No browser cookie decryption. Cursor Models and Other Models are monthly percent gates. Grok Bot has its own weekly allowance, percentage, and reset. Both requests run together; a failed Grok reading leaves the monthly windows visible with a note. On-demand is shared by Cursor and Grok Bot, and its dollar cap is stored in cents. |
+| Cursor | `state.vscdb` → `cursor.com/api/usage-summary` + `api2.cursor.sh/aiserver.v1.DashboardService/GetSandUsageStatus` | Reuses the bearer token Cursor.app already holds. Cursor 3.27+ encrypts it at rest as `cursor-safe-storage:v1:…`, which respawken decrypts with the `Cursor Safe Storage` Keychain password. Plans with `isUnified: true` (Premium) get one Weekly window shared by Cursor and Grok Bot, plus `Credits remaining`. Older plans get the monthly Cursor Models and Other Models gates, plus a separate Grok Bot weekly. Both requests run together. A failed weekly reading leaves the monthly windows visible with a note. On-demand is shared, and its dollar cap is stored in cents. |
 | Claude Code | Default `~/.claude` → Keychain `Claude Code-credentials`. A custom `CLAUDE_CONFIG_DIR` → `Claude Code-credentials-<sha256[:8]>` or `$dir/.credentials.json`. Both → `api.anthropic.com/api/oauth/usage?cedar_ember=1` | One account per Settings entry. Access tokens expire after about 8 hours. respawken refreshes them via `platform.claude.com/v1/oauth/token` and writes the new tokens back, so Claude Code keeps working. The endpoint returns no email, so rows use your labels. Team extra budget is usage credits, read from `spend` with `extra_usage` as the legacy fallback. Fable is a weekly cap nested in `limits[]` (`weekly_scoped`, display name Fable), not a top-level `seven_day_*` key. Banked resets come from `cedar_ember.grants[].resets_left`, shown as `Resets available: N` like Codex. |
 | Antigravity | The running `agy` loopback server, else Keychain `gemini`/`antigravity` → `cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary` | Gemini and Claude/GPT each get a weekly and a 5-hour window, the same groups `/usage` shows. When `agy` is open, respawken asks its local language server, which needs no CSRF token and uses a self-signed loopback cert. Otherwise it reuses the OAuth session `agy` stored in the Keychain as a `go-keyring-base64` blob, read via `/usr/bin/security`. Access tokens last about an hour. respawken refreshes them and writes the new tokens back. |
 
@@ -108,6 +108,8 @@ or `Codex's weekly is on track to empty in 2d`.
 **Cursor's state database is about 3 GB.** respawken opens it read-only with SQLite's
 `immutable=1`, which skips locking and WAL recovery. A point lookup takes about 13 ms and
 never touches the copy Cursor is writing.
+
+**Cursor encrypts its token now.** Cursor 3.27 turned on `cursor.storage.authTokenEncryptionAtRest`. The access token in `state.vscdb` became an Electron safeStorage blob (`v10`, AES-128-CBC, key from PBKDF2 over the `Cursor Safe Storage` Keychain password). The first read through `/usr/bin/security` prompts once. Click Always Allow and it stays quiet across rebuilds. If you click Deny, Cursor shows a note until the next launch instead of prompting on every poll.
 
 **Claude's credentials go through `/usr/bin/security`, not `SecItemCopyMatching`.** Reading
 that Keychain item in-process raises an authorization prompt and takes about 8 seconds.

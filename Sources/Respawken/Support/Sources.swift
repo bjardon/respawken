@@ -1,3 +1,4 @@
+import CommonCrypto
 import Foundation
 import SQLite3
 import Security
@@ -120,6 +121,96 @@ enum StateDB {
 
         guard sqlite3_step(stmt) == SQLITE_ROW, let text = sqlite3_column_text(stmt, 0) else { return nil }
         return String(cString: text)
+    }
+}
+
+/// Decrypts Electron `safeStorage` values on macOS: `v10` + AES-128-CBC, keyed by
+/// PBKDF2-HMAC-SHA1(Keychain "… Safe Storage" password, "saltysalt", 1003), IV of 16 spaces.
+///
+/// The password goes through `/usr/bin/security`. The first read prompts once; "Always Allow"
+/// binds to that Apple tool rather than our binary hash, so rebuilds stay quiet. The derived
+/// key is cached per process and re-derived only when the Keychain item changes. A refused
+/// read is remembered too, so a Deny doesn't re-prompt on every poll.
+enum SafeStorage {
+    private struct Entry {
+        let modified: Date?
+        let key: Data?
+    }
+
+    private static let lock = NSLock()
+    private static var cache: [String: Entry] = [:]
+
+    enum Failure: Error {
+        case keychainDenied
+        case undecryptable
+    }
+
+    static func decrypt(_ encrypted: Data, service: String, account: String) -> Result<String, Failure> {
+        guard let key = key(service: service, account: account) else { return .failure(.keychainDenied) }
+        guard let plain = aesDecrypt(encrypted, key: key) else { return .failure(.undecryptable) }
+        return .success(plain)
+    }
+
+    private static func key(service: String, account: String) -> Data? {
+        lock.lock()
+        defer { lock.unlock() }
+        let modified = Keychain.modificationDate(service: service)
+        if let entry = cache[service], entry.modified == modified { return entry.key }
+        let key = Keychain.genericPassword(service: service, account: account).flatMap(pbkdf2)
+        cache[service] = Entry(modified: modified, key: key)
+        return key
+    }
+
+    private static func aesDecrypt(_ encrypted: Data, key: Data) -> String? {
+        guard encrypted.count > 3, encrypted.prefix(3) == Data("v10".utf8) else { return nil }
+        let ciphertext = Data(encrypted.dropFirst(3))
+        guard !ciphertext.isEmpty, ciphertext.count % kCCBlockSizeAES128 == 0 else { return nil }
+
+        let iv = Data(repeating: UInt8(ascii: " "), count: kCCBlockSizeAES128)
+        var out = Data(count: ciphertext.count + kCCBlockSizeAES128)
+        let capacity = out.count
+        var length = 0
+        let status: Int32 = out.withUnsafeMutableBytes { outBytes in
+            ciphertext.withUnsafeBytes { cipherBytes in
+                key.withUnsafeBytes { keyBytes in
+                    iv.withUnsafeBytes { ivBytes in
+                        CCCrypt(
+                            CCOperation(kCCDecrypt), CCAlgorithm(kCCAlgorithmAES),
+                            CCOptions(kCCOptionPKCS7Padding),
+                            keyBytes.baseAddress, kCCKeySizeAES128, ivBytes.baseAddress,
+                            cipherBytes.baseAddress, ciphertext.count,
+                            outBytes.baseAddress, capacity, &length
+                        )
+                    }
+                }
+            }
+        }
+        guard status == kCCSuccess else { return nil }
+        out.count = length
+        return String(data: out, encoding: .utf8)
+    }
+
+    private static func pbkdf2(_ password: Data) -> Data? {
+        var derived = Data(count: kCCKeySizeAES128)
+        let salt = Array("saltysalt".utf8)
+        let passwordBytes = [UInt8](password)
+        let status = derived.withUnsafeMutableBytes { derivedBytes -> Int32 in
+            guard let derivedPtr = derivedBytes.bindMemory(to: UInt8.self).baseAddress else {
+                return Int32(kCCParamError)
+            }
+            return passwordBytes.withUnsafeBufferPointer { passBuf in
+                passBuf.withMemoryRebound(to: Int8.self) { passChars in
+                    CCKeyDerivationPBKDF(
+                        CCPBKDFAlgorithm(kCCPBKDF2),
+                        passChars.baseAddress, passwordBytes.count,
+                        salt, salt.count,
+                        CCPseudoRandomAlgorithm(kCCPRFHmacAlgSHA1), 1003,
+                        derivedPtr, kCCKeySizeAES128
+                    )
+                }
+            }
+        }
+        return status == kCCSuccess ? derived : nil
     }
 }
 

@@ -4,8 +4,9 @@ import Foundation
 /// browser cookie jars, this reads the bearer token Cursor.app already keeps in its own global
 /// state database and rebuilds the web session cookie from it. No Keychain prompt, no browser.
 ///
-/// Cursor's IDE windows reset at the billing-cycle end. Grok Bot has a separate weekly
-/// allowance, read from Cursor's dashboard RPC with the same bearer token.
+/// Legacy plans: Cursor Models and Other Models reset at the billing-cycle end, and Grok Bot has
+/// a separate weekly allowance. Unified plans (Premium) have one weekly limit for both, plus
+/// prepaid credits. The weekly reading comes from Cursor's dashboard RPC with the same token.
 struct CursorProvider: UsageProvider {
     let id = ProviderID.cursor
 
@@ -15,9 +16,26 @@ struct CursorProvider: UsageProvider {
             .path
     }
 
+    /// Cursor 3.27+ encrypts auth tokens at rest (`cursor.storage.authTokenEncryptionAtRest`) as
+    /// `cursor-safe-storage:v1:<base64 Electron safeStorage blob>`. Older builds store the JWT as-is.
+    private static func accessToken(from stored: String) -> Result<String, SafeStorage.Failure> {
+        let prefix = "cursor-safe-storage:v1:"
+        guard stored.hasPrefix(prefix) else { return .success(stored) }
+        guard let blob = Data(base64Encoded: String(stored.dropFirst(prefix.count))) else {
+            return .failure(.undecryptable)
+        }
+        return SafeStorage.decrypt(blob, service: "Cursor Safe Storage", account: "Cursor Key")
+    }
+
     func fetch() async -> ProviderOutcome {
-        guard let token = StateDB.value(forKey: "cursorAuth/accessToken", at: stateDBPath), !token.isEmpty else {
+        guard let stored = StateDB.value(forKey: "cursorAuth/accessToken", at: stateDBPath), !stored.isEmpty else {
             return .signedOut("Sign in to Cursor")
+        }
+        let token: String
+        switch Self.accessToken(from: stored) {
+        case .success(let value): token = value
+        case .failure(.keychainDenied): return .failed("Allow Keychain access to Cursor Safe Storage")
+        case .failure(.undecryptable): return .failed("Could not decrypt Cursor session")
         }
         guard let claims = JWT.payload(token), let subject = claims["sub"] as? String else {
             return .failed("Could not read Cursor session")
@@ -30,7 +48,7 @@ struct CursorProvider: UsageProvider {
             withAllowedCharacters: CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-._~"))
         ) ?? subject
 
-        async let grokUsage = fetchGrokUsage(token: token)
+        async let weeklyUsage = fetchWeeklyUsage(token: token)
         do {
             let json = try await HTTP.getJSON(
                 "https://cursor.com/api/usage-summary",
@@ -39,8 +57,7 @@ struct CursorProvider: UsageProvider {
                     "Accept": "application/json",
                 ]
             )
-            let grok = await grokUsage
-            return .ok(parse(json, grokWindow: grok.window, grokNote: grok.note))
+            return .ok(parse(json, weekly: await weeklyUsage))
         } catch let failure as HTTP.Failure where failure.status == 401 {
             return .signedOut("Cursor session rejected — sign in again")
         } catch {
@@ -48,8 +65,17 @@ struct CursorProvider: UsageProvider {
         }
     }
 
+    private struct WeeklyReading {
+        var window: UsageWindow?
+        var note: String?
+        /// Unified billing (Premium and later plans): one weekly limit shared by Cursor and
+        /// Grok Bot replaces the monthly Cursor Models / Other Models gates.
+        var unified = false
+        var prepaidCents: Double?
+    }
+
     /// This optional reading must not turn healthy monthly Cursor usage into an error.
-    private func fetchGrokUsage(token: String) async -> (window: UsageWindow?, note: String?) {
+    private func fetchWeeklyUsage(token: String) async -> WeeklyReading {
         do {
             let json = try await HTTP.postJSON(
                 "https://api2.cursor.sh/aiserver.v1.DashboardService/GetSandUsageStatus",
@@ -61,10 +87,15 @@ struct CursorProvider: UsageProvider {
             )
             // Enterprise pools and accounts without an included allowance have no
             // individual weekly meter, matching Grok Bot's own Settings screen.
+            let unified = isTrue(json["isUnified"])
+            let prepaid = unified ? json.number("prepaidAvailableCents") : nil
             guard !isTrue(json["usesPooledEnterpriseAllowance"]),
-                  isTrue(json["hasNonZeroIncludedLimit"]) else { return (nil, nil) }
+                  isTrue(json["hasNonZeroIncludedLimit"]) else {
+                return WeeklyReading(unified: unified, prepaidCents: prepaid)
+            }
             guard let percent = json.number("usagePercent"), percent.isFinite else {
-                return (nil, "Grok Bot usage unavailable")
+                return WeeklyReading(note: unified ? "Weekly usage unavailable" : "Grok Bot usage unavailable",
+                                     unified: unified, prepaidCents: prepaid)
             }
             let resets = json.date("nextResetTimestampUtc")
             let start = json.date("currentPeriodStart")
@@ -72,14 +103,18 @@ struct CursorProvider: UsageProvider {
                 guard let resets, let start, resets > start else { return nil }
                 return resets.timeIntervalSince(start)
             }()
-            return (UsageWindow(id: "grok-weekly", title: "Grok Bot · Weekly",
-                                usedPercent: max(0, percent), resetsAt: resets, duration: duration), nil)
+            let window = unified
+                ? UsageWindow(id: "weekly", title: "Weekly",
+                              usedPercent: max(0, percent), resetsAt: resets, duration: duration)
+                : UsageWindow(id: "grok-weekly", title: "Grok Bot · Weekly",
+                              usedPercent: max(0, percent), resetsAt: resets, duration: duration)
+            return WeeklyReading(window: window, unified: unified, prepaidCents: prepaid)
         } catch {
-            return (nil, "Grok Bot usage unavailable")
+            return WeeklyReading(note: "Grok Bot usage unavailable")
         }
     }
 
-    private func parse(_ json: [String: Any], grokWindow: UsageWindow?, grokNote: String?) -> ProviderSnapshot {
+    private func parse(_ json: [String: Any], weekly: WeeklyReading) -> ProviderSnapshot {
         let resets = json.date("billingCycleEnd")
         let cycleStart = json.date("billingCycleStart")
         let duration: TimeInterval? = {
@@ -93,16 +128,20 @@ struct CursorProvider: UsageProvider {
 
         // Match Cursor's Plan & Usage UI: Cursor Models (auto) + Other Models (API).
         // Ignore plan.used/limit — those are a dollar ledger in cents, not the quota gate.
+        // Unified plans still return the monthly percents, frozen at 0 and no longer
+        // shown in Plan & Usage, so only the shared weekly limit counts there.
         var windows: [UsageWindow] = []
-        if let auto = plan?.number("autoPercentUsed") {
+        if weekly.unified, let window = weekly.window {
+            windows.append(window)
+        } else if let auto = plan?.number("autoPercentUsed") {
             windows.append(UsageWindow(id: "included", title: "Cursor Models",
                                        usedPercent: auto, resetsAt: resets, duration: duration))
         }
-        if let api = plan?.number("apiPercentUsed") {
+        if !weekly.unified, let api = plan?.number("apiPercentUsed") {
             windows.append(UsageWindow(id: "api", title: "Other Models",
                                        usedPercent: api, resetsAt: resets, duration: duration))
         }
-        if let grokWindow { windows.append(grokWindow) }
+        if !weekly.unified, let window = weekly.window { windows.append(window) }
 
         var onDemandNote: String?
         if let onDemand = individual?.dict("onDemand"), isTrue(onDemand["enabled"]),
@@ -122,14 +161,19 @@ struct CursorProvider: UsageProvider {
 
         let auto = plan?.number("autoPercentUsed") ?? 0
         let api = plan?.number("apiPercentUsed") ?? 0
-        if auto >= 100, api >= 100 {
+        if weekly.unified {
+            let spent = (weekly.window?.usedPercent ?? 0) >= 100
+            let credits = weekly.prepaidCents.map { "Credits remaining: \(formatCents($0))" }
+            snapshot.note = [spent ? (onDemandNote ?? "Included usage spent") : onDemandNote, credits]
+                .compactMap { $0 }.joined(separator: " · ")
+        } else if auto >= 100, api >= 100 {
             snapshot.note = onDemandNote ?? "Included usage spent"
         } else if auto >= 100 {
             snapshot.note = "Cursor Models spent — drawing from Other Models"
         } else {
             snapshot.note = onDemandNote
         }
-        snapshot.note = [snapshot.note, grokNote].compactMap { $0 }.joined(separator: " · ")
+        snapshot.note = [snapshot.note, weekly.note].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
         if snapshot.note?.isEmpty == true { snapshot.note = nil }
         return snapshot
     }

@@ -2,6 +2,13 @@
 
 ## Working
 
+- [x] **Cursor encrypted token.** Cursor 3.27 stores its access token encrypted at rest.
+      respawken decrypts it with the `Cursor Safe Storage` Keychain password, which
+      prompts once. Live probe verified.
+- [x] **Cursor Premium.** Unified plans show one Weekly window shared by Cursor and Grok
+      Bot, plus `Credits remaining`. The frozen monthly gates are hidden. Weekly is the
+      default pin. Older plans keep the monthly windows and Grok Bot weekly. Matched
+      against Plan & Usage, and Bruno confirmed it in the running panel.
 - [x] **Dropped Notion AI.** The subscription is canceled, so the provider, its Settings
       pin, strings, and the Chromium cookie decryption only it used are gone. Settings
       moved its view state from `@State` to an `ObservableObject`, because the 27.2
@@ -105,7 +112,9 @@
 
 ## Known gaps
 
-- Grok Bot usage uses Cursor's private dashboard RPC, which can change without notice.
+- Cursor's weekly reading (Grok Bot, or the unified Weekly) uses Cursor's private
+      dashboard RPC, which can change without notice. So does the `cursor-safe-storage:v1:`
+      token format.
 - Early in a window, it can say "on pace" while ahead of expected usage, because the
   forecast thresholds don't allow an exhaustion estimate yet.
 - Claude shows no account email. The usage endpoint doesn't return one, unlike Codex and

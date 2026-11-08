@@ -171,7 +171,7 @@ enum IconWindowDefaults {
     static func windowID(for provider: ProviderID) -> String {
         switch provider.rawValue {
         case ProviderID.codex.rawValue: return "primary"
-        case ProviderID.cursor.rawValue: return "included"
+        case ProviderID.cursor.rawValue: return "weekly"
         case ProviderID.antigravity.rawValue: return "gemini-5h"
         default: return "five_hour"
         }
@@ -184,6 +184,7 @@ enum IconWindowDefaults {
             return [("primary", L10n.t(.window5hour)), ("secondary", L10n.t(.windowWeekly))]
         case ProviderID.cursor.rawValue:
             return [
+                ("weekly", L10n.t(.windowWeekly)),
                 ("included", L10n.t(.windowCursorModels)),
                 ("api", L10n.t(.windowOtherModels)),
                 ("grok-weekly", L10n.t(.windowGrokWeekly)),
