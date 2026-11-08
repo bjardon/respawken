@@ -16,7 +16,7 @@ Use these names in code, UI copy, docs, and replies. Map the user's words onto t
 **Product screen.** What you get after clicking an Overview row. Claude puts every account on one screen. Not a page or tab.
 **Settings.** The window behind the gear.
 
-**Product.** Claude, Codex, Cursor, Notion, or Antigravity.
+**Product.** Claude, Codex, Cursor, or Antigravity.
 **Account.** A Claude login. Personal and Work each get their own meter; the other products have one.
 **Window.** A usage cycle (session, weekly, Cursor Models, …). Not the panel, and not Settings.
 **Meter.** The bar that fills up for a window.
@@ -32,7 +32,7 @@ A change is verified when you have seen it in the running app. Run `./build.sh -
 
 ## Guardrails
 
-- Credentials stay on-device. Never log, commit, or paste Keychain items, OAuth tokens, Notion cookies, or `settings.json` contents.
+- Credentials stay on-device. Never log, commit, or paste Keychain items, OAuth tokens, or `settings.json` contents.
 - Ask before paid services, deployments, or other consequential external actions.
 - Process lives in `README.md`, `TODO.md`, and the devlog. Add other ceremony (plans, issues, ADRs, `LANGUAGE.md`, review gates) only when asked.
 

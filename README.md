@@ -4,15 +4,15 @@
   <img src="docs/app-icon.png" alt="Respawken" width="168" />
 </p>
 
-A tiny macOS menu bar app that shows how much Claude Code, Codex, Cursor, Notion AI, and
-Antigravity usage you have left, and when each limit resets.
+A tiny macOS menu bar app that shows how much Claude Code, Codex, Cursor, and Antigravity
+usage you have left, and when each limit resets.
 
 Native Swift/SwiftUI, no Dock icon, about 22 MB resident, 0% CPU when idle.
 
 ![panel](docs/panel.png)
 
 The menu bar icon stacks one meter per account or product, top to bottom: your Claude
-accounts, then Codex, Cursor, Notion AI, and Antigravity. Fill is usage. Color is severity,
+accounts, then Codex, Cursor, and Antigravity. Fill is usage. Color is severity,
 green, amber, or red. A signed-out or failing product draws an empty outline, so a missing
 reading never looks like a healthy zero. Settings → Menu bar icon has two other styles.
 **Status** draws each meter as one solid severity color. **App Icon** draws a monotone ring
@@ -30,8 +30,8 @@ config dir) and change or clear the shortcut. The defaults are Personal on `~/.c
 Work on `~/.claude-oxp`. Settings live in
 `~/Library/Application Support/Respawken/settings.json`.
 
-Each product pins one window onto the icon and Overview: Claude session, Notion 6-hour,
-Codex 5-hour, Cursor Models, and Antigravity Gemini 5-hour. Change the pin in Settings.
+Each product pins one window onto the icon and Overview: Claude session, Codex 5-hour,
+Cursor Models, and Antigravity Gemini 5-hour. Change the pin in Settings.
 If the pinned window has no reset time, Overview takes `resets in …` from the soonest
 sibling window, or from the plan renewal for usage credits.
 
@@ -69,7 +69,6 @@ timestamps, and renewal metadata locally.
 | Codex | `~/.codex/auth.json` → `chatgpt.com/backend-api/wham/usage` | Refreshes expired access tokens via `auth.openai.com/oauth/token` and writes the new tokens back, so Codex keeps working. Plus accounts get a 5-hour session window and a weekly one. Weekly-only plans get just the weekly. If the API is unreachable or refresh fails, it reads the `rate_limits` block from the newest log in `~/.codex/sessions` or `archived_sessions`. |
 | Cursor | `state.vscdb` → `cursor.com/api/usage-summary` + `api2.cursor.sh/aiserver.v1.DashboardService/GetSandUsageStatus` | Reuses the bearer token Cursor.app already holds. No browser cookie decryption. Cursor Models and Other Models are monthly percent gates. Grok Bot has its own weekly allowance, percentage, and reset. Both requests run together; a failed Grok reading leaves the monthly windows visible with a note. On-demand is shared by Cursor and Grok Bot, and its dollar cap is stored in cents. |
 | Claude Code | Default `~/.claude` → Keychain `Claude Code-credentials`. A custom `CLAUDE_CONFIG_DIR` → `Claude Code-credentials-<sha256[:8]>` or `$dir/.credentials.json`. Both → `api.anthropic.com/api/oauth/usage?cedar_ember=1` | One account per Settings entry. Access tokens expire after about 8 hours. respawken refreshes them via `platform.claude.com/v1/oauth/token` and writes the new tokens back, so Claude Code keeps working. The endpoint returns no email, so rows use your labels. Team extra budget is usage credits, read from `spend` with `extra_usage` as the legacy fallback. Fable is a weekly cap nested in `limits[]` (`weekly_scoped`, display name Fable), not a top-level `seven_day_*` key. Banked resets come from `cedar_ember.grants[].resets_left`, shown as `Resets available: N` like Codex. |
-| Notion AI | Notion.app Cookies + Keychain `Notion Safe Storage` → `app.notion.com/api/v3/getCreditRateLimitStatus`, plus `getAIUsageEligibilityV2` for credits | Decrypts the desktop app's `token_v2` session cookie, reading the key via `/usr/bin/security` to skip the Keychain prompt, same as Claude. Tracks the 6-hour and monthly AI allowance on Business and Enterprise, plus the Notion credits balance. These are Notion's private web APIs, not the public API, and Notion can change them without notice. |
 | Antigravity | The running `agy` loopback server, else Keychain `gemini`/`antigravity` → `cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary` | Gemini and Claude/GPT each get a weekly and a 5-hour window, the same groups `/usage` shows. When `agy` is open, respawken asks its local language server, which needs no CSRF token and uses a self-signed loopback cert. Otherwise it reuses the OAuth session `agy` stored in the Keychain as a `go-keyring-base64` blob, read via `/usr/bin/security`. Access tokens last about an hour. respawken refreshes them and writes the new tokens back. |
 
 respawken polls every product at once every 2 minutes, with a 12-second timeout each. A
@@ -152,8 +151,8 @@ Sources/Respawken/
   PanelView.swift        the panel
   Probe.swift            --probe and --preview
   Providers/             one file per product
-  Support/Sources.swift  Keychain, SQLite, JWT, HTTP, Chromium cookie decrypt, tolerant JSON accessors
+  Support/Sources.swift  Keychain, SQLite, JWT, HTTP, tolerant JSON accessors
 ```
 
 Prior art: [CodexBar](https://github.com/steipete/CodexBar) supports about 29 products.
-respawken covers five and tries to stay boring.
+respawken covers four and tries to stay boring.

@@ -53,8 +53,6 @@ enum L10n {
         case "api": return t(.windowOtherModels)
         case "grok-weekly": return t(.windowGrokWeekly)
         case "onDemand": return t(.windowOnDemand)
-        case "monthly": return t(.windowMonthly)
-        case "credits": return t(.windowCredits)
         case "five_hour": return t(.windowSession5h)
         case "seven_day": return t(.windowWeekly)
         case "seven_day_opus": return t(.windowWeeklyOpus)
@@ -63,7 +61,6 @@ enum L10n {
         case "seven_day_cowork": return t(.windowWeeklyCowork)
         case "seven_day_fable": return t(.windowWeeklyFable)
         case "extra_usage": return t(.windowUsageCredits)
-        case "rolling": return durationTitle(stored)
         case "gemini-weekly": return t(.windowGeminiWeekly)
         case "gemini-5h": return t(.windowGemini5h)
         case "3p-weekly": return t(.windowClaudeGptWeekly)
@@ -100,9 +97,6 @@ enum L10n {
         if text.hasPrefix("On-demand: ") {
             return t(.cursorOnDemandPrefix) + String(text.dropFirst("On-demand: ".count))
         }
-        if text.hasPrefix("Credits left: ") {
-            return t(.creditsLeftPrefix) + String(text.dropFirst("Credits left: ".count))
-        }
         if text.hasPrefix("Credits: ") {
             return t(.creditsPrefix) + String(text.dropFirst("Credits: ".count))
         }
@@ -111,9 +105,6 @@ enum L10n {
         }
         if text.hasPrefix("next expires in ") {
             return t(.nextResetExpiresPrefix) + String(text.dropFirst("next expires in ".count))
-        }
-        if text.hasPrefix("AI usage allowance not tracked for ") {
-            return notionAllowance(text)
         }
         if text.hasPrefix("HTTP ") { return text }
         return text
@@ -206,8 +197,6 @@ enum L10n {
         case windowOtherModels
         case windowGrokWeekly
         case windowOnDemand
-        case windowMonthly
-        case windowCredits
         case windowGeminiWeekly
         case windowGemini5h
         case windowClaudeGptWeekly
@@ -218,11 +207,9 @@ enum L10n {
         case claudeTokenLacks
         case claudeExtraUsagePrefix
         case cursorOnDemandPrefix
-        case creditsLeftPrefix
         case creditsPrefix
         case resetsAvailablePrefix
         case nextResetExpiresPrefix
-        case notionAllowanceNotTracked
         case sourceLocalSessionLog
 
         case notifyExhaustionTitle
@@ -355,8 +342,6 @@ enum L10n {
         .windowOtherModels: [.english: "Other Models", .spanish: "Otros modelos"],
         .windowGrokWeekly: [.english: "Grok Bot · Weekly", .spanish: "Grok Bot · Semanal"],
         .windowOnDemand: [.english: "On-demand", .spanish: "Bajo demanda"],
-        .windowMonthly: [.english: "Monthly", .spanish: "Mensual"],
-        .windowCredits: [.english: "Credits", .spanish: "Créditos"],
         .windowGeminiWeekly: [.english: "Gemini Weekly", .spanish: "Gemini semanal"],
         .windowGemini5h: [.english: "Gemini 5-hour", .spanish: "Gemini 5 horas"],
         .windowClaudeGptWeekly: [.english: "Claude/GPT Weekly", .spanish: "Claude/GPT semanal"],
@@ -373,14 +358,9 @@ enum L10n {
         ],
         .claudeExtraUsagePrefix: [.english: "Usage credits: ", .spanish: "Créditos de uso: "],
         .cursorOnDemandPrefix: [.english: "On-demand: ", .spanish: "Bajo demanda: "],
-        .creditsLeftPrefix: [.english: "Credits left: ", .spanish: "Créditos restantes: "],
         .creditsPrefix: [.english: "Credits: ", .spanish: "Créditos: "],
         .resetsAvailablePrefix: [.english: "Resets available: ", .spanish: "Reinicios disponibles: "],
         .nextResetExpiresPrefix: [.english: "next expires in ", .spanish: "el próximo vence en "],
-        .notionAllowanceNotTracked: [
-            .english: "AI usage allowance not tracked for %@ (%@)",
-            .spanish: "El uso de IA de %@ (%@) no se rastrea",
-        ],
         .sourceLocalSessionLog: [.english: "local session log", .spanish: "registro de sesión local"],
 
         .notifyExhaustionTitle: [.english: "🔥 Running on fumes", .spanish: "🔥 En las últimas"],
@@ -423,10 +403,6 @@ enum L10n {
         "Included usage spent — running on on-demand": "Uso incluido agotado — usando bajo demanda",
         "Included usage spent": "Uso incluido agotado",
         "Cursor Models spent — drawing from Other Models": "Modelos Cursor agotados — usando Otros modelos",
-        "Install and sign in to Notion.app": "Instala Notion.app e inicia sesión",
-        "Sign in to Notion.app (or Allow Keychain access)": "Inicia sesión en Notion.app (o permite el acceso al Llavero)",
-        "No Business/Enterprise Notion workspace found": "No se encontró un espacio Notion Business/Enterprise",
-        "Notion session rejected — sign in to Notion.app again": "Sesión de Notion rechazada — vuelve a iniciar sesión en Notion.app",
         "No limit windows reported": "No se informaron ventanas de límite",
         "No usage reported": "Sin datos de uso",
         "Session expired — run `claude auth login`": "Sesión caducada — ejecuta `claude auth login`",
@@ -450,8 +426,6 @@ enum L10n {
         case "Daily": return t(.windowDaily)
         case "5-hour": return t(.window5hour)
         case "Usage": return t(.windowUsage)
-        case "Monthly": return t(.windowMonthly)
-        case "Credits": return t(.windowCredits)
         case "Gemini Weekly": return t(.windowGeminiWeekly)
         case "Gemini 5-hour": return t(.windowGemini5h)
         case "Claude/GPT Weekly": return t(.windowClaudeGptWeekly)
@@ -477,18 +451,5 @@ enum L10n {
             return t(key, value)
         }
         return nil
-    }
-
-    private static func notionAllowance(_ text: String) -> String {
-        let prefix = "AI usage allowance not tracked for "
-        guard text.hasPrefix(prefix),
-              let rparen = text.lastIndex(of: ")"),
-              let lparen = text.lastIndex(of: "("),
-              lparen < rparen
-        else { return text }
-        let nameStart = text.index(text.startIndex, offsetBy: prefix.count)
-        let name = String(text[nameStart..<lparen]).trimmingCharacters(in: .whitespaces)
-        let tier = String(text[text.index(after: lparen)..<rparen])
-        return t(.notionAllowanceNotTracked, name, tier)
     }
 }

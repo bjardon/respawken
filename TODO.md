@@ -2,6 +2,10 @@
 
 ## Working
 
+- [x] **Dropped Notion AI.** The subscription is canceled, so the provider, its Settings
+      pin, strings, and the Chromium cookie decryption only it used are gone. Settings
+      moved its view state from `@State` to an `ObservableObject`, because the 27.2
+      Command Line Tools lack SwiftUI's macro plugin and `@State` no longer compiles.
 - [x] **Claude banked resets.** Product screens show `Resets available: N · next
       expires in …`, using the soonest expiry among counted grants. Zero, expired,
       future, and paused grants are hidden. Live probe and PNG verified both accounts;
@@ -12,8 +16,7 @@
       after repeated failures, and caches renewal metadata for 24 hours.
 - [x] Every product screen resizes the native panel to fit. Going back to Overview restores
       its height with no empty margin.
-- [x] Menu bar images are reused when nothing changed. Notion allowance and credits load
-      in parallel. Polling frequency is unchanged. Memory and energy gains aren't measured.
+- [x] Menu bar images are reused when nothing changed. Polling frequency is unchanged. Memory and energy gains aren't measured.
 - [x] Codex log fallback reads stay bounded while the log grows and handle UTF-8 characters
       split across reads.
 - [x] Panel PNG exports leave out the AppKit opening watcher, which otherwise makes the
@@ -56,8 +59,6 @@
 - [x] **Claude accounts in Settings.** The gear opens Settings. Add, rename, or remove
       accounts with a label and config dir. The list persists to Application Support,
       and the panel and menu bar icon rebuild from it. Codex and Cursor have one source each.
-- [x] **Notion AI.** The 6-hour and monthly allowance from the Notion.app session, plus the
-      Notion credits balance and monthly credits window, from private `/api/v3` endpoints.
 - [x] **Google Antigravity.** Gemini and Claude/GPT weekly and 5-hour windows, from `agy`'s
       OAuth session in the Keychain or the running CLI's local `/usage` server.
 - [x] **App icon.** A cooldown ring around a token core. `Resources/AppIcon.icon` is the
@@ -74,20 +75,20 @@
       clear it in Settings → Keyboard. No Accessibility permission needed.
 - [x] **Renewal date.** Product screens show a `Renews:` row for the paid plan, separate
       from any window's reset. Claude uses `subscription_created_at`, Codex the ChatGPT
-      id-token period, Cursor and Notion their billing-cycle end.
+      id-token period, Cursor its billing-cycle end.
 - [x] **Claude usage credits.** Extra budget from `/api/oauth/usage`, read from `spend`
       with `extra_usage` as the legacy fallback. When the org has a positive cap, the
       product screen shows a meter and `$used / $limit`. A `$0` limit only gets a note.
 - [x] **Claude Fable.** A weekly cap nested in `/api/oauth/usage` `limits[]`
       (`weekly_scoped`, display name Fable). You can pin it.
-- [x] Dropped **Now burning**. Claude and Notion pin session and 6-hour again. Old
-      `now_burning` settings fall back to those.
+- [x] Dropped **Now burning**. Claude pins session again. Old `now_burning` settings
+      fall back to it.
 - [x] **Pace.** Every window with a duration and a reset projects its average burn for
       the cycle. Panel meters show a tick for expected usage plus `below pace`, `on pace`,
       or `empties in …`. A weekly or monthly window that runs ahead sends one
-      `⏳ Ahead of pace` notification per cycle. Session, 6-hour, and Notion credits don't.
+      `⏳ Ahead of pace` notification per cycle. Session windows don't.
       The menu bar icon is unchanged.
-- [x] When the pinned window has no countdown, such as credits or an idle Notion 6-hour,
+- [x] When the pinned window has no countdown, such as usage credits,
       Overview takes `resets in …` from the soonest sibling window or the plan renewal.
 - [x] **Cursor on-demand.** When enabled, a shared window plus `On-demand: $0 / $10`,
       in cents from `individualUsage.onDemand`. Pinned statically in Settings.
@@ -112,9 +113,6 @@
 - Claude's Opus, Sonnet, and Cowork weekly windows are still `null` on Team. Fable is the
   scoped weekly that does arrive, via `limits[]` rather than a `seven_day_*` key.
 - Settings can't reorder accounts yet. They appear in list order. Add and remove work.
-- Notion AI uses undocumented `app.notion.com/api/v3` endpoints with the desktop session
-  cookie, and Notion can change them without notice. Accounts with several workspaces use
-  the first Business or Enterprise space Notion returns.
 - Antigravity reads Cloud Code `v1internal` and `agy`'s local Connect-RPC. Google can change
   either without notice. Neither exposes a renewal date.
 - Cursor Other Models is a separate included pool (labs, open weights), not a tier after

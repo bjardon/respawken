@@ -4,7 +4,7 @@ import SwiftUI
 /// Overview is the default. A product screen is the same grouping as the old
 /// tabs — Claude still stacks Personal + Work — reached by clicking a row.
 enum PanelTab: String, CaseIterable, Identifiable {
-    case overview, claude, codex, cursor, notion, antigravity
+    case overview, claude, codex, cursor, antigravity
 
     var id: String { rawValue }
 
@@ -14,7 +14,6 @@ enum PanelTab: String, CaseIterable, Identifiable {
         case .claude: return "Claude"
         case .codex: return "Codex"
         case .cursor: return "Cursor"
-        case .notion: return "Notion"
         case .antigravity: return "Antigravity"
         }
     }
@@ -23,7 +22,6 @@ enum PanelTab: String, CaseIterable, Identifiable {
         switch provider.rawValue {
         case ProviderID.codex.rawValue: return .codex
         case ProviderID.cursor.rawValue: return .cursor
-        case ProviderID.notion.rawValue: return .notion
         case ProviderID.antigravity.rawValue: return .antigravity
         default: return .claude
         }
@@ -291,7 +289,6 @@ struct PanelView: View {
         case .claude: return store.claudeAccounts.map(\.providerID)
         case .codex: return [.codex]
         case .cursor: return [.cursor]
-        case .notion: return [.notion]
         case .antigravity: return [.antigravity]
         }
     }
@@ -551,8 +548,8 @@ private struct SnapshotBody: View {
     }
 
     /// The reset instant shared by every window that has one, when they agree.
-    /// Windows without a date (idle session, 6-hour with no `resetsInSeconds`)
-    /// don't block collapsing Cursor/Notion's billing cycle to one footer.
+    /// Windows without a date (an idle session) don't block collapsing Cursor's
+    /// billing cycle to one footer.
     private func sharedReset(_ windows: [UsageWindow]) -> Date? {
         let dates = windows.compactMap(\.resetsAt)
         guard dates.count > 1, let first = dates.first else { return nil }
@@ -631,7 +628,7 @@ private struct WindowFooting: View {
     }
 }
 
-/// Dedicated fact line, same weight as "Credits left: 300".
+/// Dedicated fact line, same weight as "Credits: 300".
 private struct RenewsRow: View {
     let date: Date
 

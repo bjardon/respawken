@@ -3,7 +3,7 @@ import Foundation
 import SwiftUI
 
 /// Stable identity for a provider row / menu-bar meter / notification key.
-/// Codex, Cursor, Notion, and Antigravity are fixed; Claude slots are `claude.<id>` from settings.
+/// Codex, Cursor, and Antigravity are fixed; Claude slots are `claude.<id>` from settings.
 struct ProviderID: Hashable, Identifiable, Codable, Sendable, RawRepresentable {
     let rawValue: String
 
@@ -15,7 +15,6 @@ struct ProviderID: Hashable, Identifiable, Codable, Sendable, RawRepresentable {
 
     static let codex = ProviderID(rawValue: "codex")
     static let cursor = ProviderID(rawValue: "cursor")
-    static let notion = ProviderID(rawValue: "notion")
     static let antigravity = ProviderID(rawValue: "antigravity")
 
     /// Built-in accent when the user hasn't set a custom colour.
@@ -26,8 +25,6 @@ struct ProviderID: Hashable, Identifiable, Codable, Sendable, RawRepresentable {
             return Color(red: 0.30, green: 0.78, blue: 0.62)
         case Self.cursor.rawValue:
             return Color(red: 0.45, green: 0.60, blue: 0.95)
-        case Self.notion.rawValue:
-            return Color(red: 0.25, green: 0.45, blue: 0.65)
         case Self.antigravity.rawValue:
             return Color(red: 0.48, green: 0.80, blue: 0.22)
         default:
@@ -47,7 +44,6 @@ struct ProviderID: Hashable, Identifiable, Codable, Sendable, RawRepresentable {
         switch rawValue {
         case Self.codex.rawValue: return "Codex"
         case Self.cursor.rawValue: return "Cursor"
-        case Self.notion.rawValue: return "Notion AI"
         case Self.antigravity.rawValue: return "Antigravity"
         default:
             if let label = accounts.first(where: { $0.id == rawValue })?.label, !label.isEmpty {
@@ -62,7 +58,6 @@ struct ProviderID: Hashable, Identifiable, Codable, Sendable, RawRepresentable {
         switch rawValue {
         case Self.codex.rawValue: return "Codex"
         case Self.cursor.rawValue: return "Cursor"
-        case Self.notion.rawValue: return "Notion AI"
         case Self.antigravity.rawValue: return "Antigravity"
         default:
             if let label = accounts.first(where: { $0.id == rawValue })?.label, !label.isEmpty {
@@ -211,7 +206,7 @@ enum BurnPace {
         return emptyAt
     }
 
-    /// Session, 6-hour, and Notion credits stay off the notification path.
+    /// Short windows and credit balances stay off the notification path.
     static func notifiesAhead(window: UsageWindow) -> Bool {
         window.id != "credits" && (window.duration ?? 0) >= minDuration
     }

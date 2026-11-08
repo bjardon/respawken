@@ -1,13 +1,25 @@
 import AppKit
 import SwiftUI
 
+/// Settings' editable state. The 27.2 Command Line Tools ship SwiftUI's `@State` as a macro
+/// without its compiler plugin, so view-local state lives in an `ObservableObject` instead.
+@MainActor
+private final class SettingsForm: ObservableObject {
+    @Published var accounts: [ClaudeAccount] = []
+    @Published var launchAtLoginEnabled = false
+    @Published var launchAtLoginNote: String?
+    @Published var shortcutNote: String?
+    @Published var testNotificationNote: String?
+}
+
+@MainActor
+private final class RecorderState: ObservableObject {
+    @Published var recording = false
+}
+
 struct SettingsView: View {
     @ObservedObject var store: UsageStore
-    @State private var accounts: [ClaudeAccount] = []
-    @State private var launchAtLoginEnabled = false
-    @State private var launchAtLoginNote: String?
-    @State private var shortcutNote: String?
-    @State private var testNotificationNote: String?
+    @StateObject private var form = SettingsForm()
 
     var body: some View {
         let _ = store.settings.language
@@ -44,7 +56,7 @@ struct SettingsView: View {
                             .font(.system(size: 12))
                             .foregroundStyle(.secondary)
                     }
-                    if let launchAtLoginNote {
+                    if let launchAtLoginNote = form.launchAtLoginNote {
                         Text(launchAtLoginNote)
                             .font(.system(size: 12))
                             .foregroundStyle(.secondary)
@@ -61,7 +73,7 @@ struct SettingsView: View {
                         Spacer()
                         ShortcutRecorder(combo: panelShortcutBinding)
                     }
-                    if let shortcutNote {
+                    if let shortcutNote = form.shortcutNote {
                         Text(shortcutNote)
                             .font(.system(size: 12))
                             .foregroundStyle(.secondary)
@@ -73,19 +85,19 @@ struct SettingsView: View {
                 }
 
                 Section {
-                    if accounts.isEmpty {
+                    if form.accounts.isEmpty {
                         Text(L10n.t(.noClaudeAccounts))
                             .foregroundStyle(.secondary)
                     }
 
-                    ForEach($accounts) { $account in
+                    ForEach($form.accounts) { $account in
                         AccountEditor(account: $account) {
-                            accounts.removeAll { $0.id == account.id }
+                            form.accounts.removeAll { $0.id == account.id }
                         }
                     }
 
                     Button(L10n.t(.addClaudeAccount)) {
-                        accounts.append(.make())
+                        form.accounts.append(.make())
                     }
                 } header: {
                     Text(L10n.t(.claudeAccounts))
@@ -128,12 +140,12 @@ struct SettingsView: View {
                     Button(L10n.t(.sendTestNotification)) {
                         Task {
                             let ok = await UsageNotifier.shared.sendTest()
-                            testNotificationNote = ok
+                            form.testNotificationNote = ok
                                 ? L10n.t(.testNotificationSent)
                                 : L10n.t(.testNotificationOff)
                         }
                     }
-                    if let testNotificationNote {
+                    if let testNotificationNote = form.testNotificationNote {
                         Text(testNotificationNote)
                             .font(.system(size: 12))
                             .foregroundStyle(.secondary)
@@ -148,17 +160,17 @@ struct SettingsView: View {
         }
         .frame(minWidth: 560, minHeight: 560)
         .onAppear {
-            accounts = store.claudeAccounts
-            launchAtLoginEnabled = LaunchAtLogin.isEnabled
-            launchAtLoginNote = LaunchAtLogin.lastError
+            form.accounts = store.claudeAccounts
+            form.launchAtLoginEnabled = LaunchAtLogin.isEnabled
+            form.launchAtLoginNote = LaunchAtLogin.lastError
             NSApp.activate(ignoringOtherApps: true)
         }
-        .onChange(of: accounts) { _, newValue in
+        .onChange(of: form.accounts) { _, newValue in
             store.updateClaudeAccounts(newValue)
         }
         .onChange(of: store.settings.language) { _, _ in
-            testNotificationNote = nil
-            shortcutNote = nil
+            form.testNotificationNote = nil
+            form.shortcutNote = nil
         }
     }
 
@@ -174,9 +186,9 @@ struct SettingsView: View {
             get: { store.settings.panelShortcut },
             set: { newValue in
                 if store.updatePanelShortcut(newValue) {
-                    shortcutNote = nil
+                    form.shortcutNote = nil
                 } else {
-                    shortcutNote = L10n.t(.shortcutConflict)
+                    form.shortcutNote = L10n.t(.shortcutConflict)
                 }
             }
         )
@@ -184,15 +196,15 @@ struct SettingsView: View {
 
     private var launchAtLoginBinding: Binding<Bool> {
         Binding(
-            get: { launchAtLoginEnabled },
+            get: { form.launchAtLoginEnabled },
             set: { newValue in
-                launchAtLoginEnabled = newValue
+                form.launchAtLoginEnabled = newValue
                 if let error = LaunchAtLogin.setEnabled(newValue) {
-                    launchAtLoginEnabled = LaunchAtLogin.isEnabled
-                    launchAtLoginNote = error
+                    form.launchAtLoginEnabled = LaunchAtLogin.isEnabled
+                    form.launchAtLoginNote = error
                 } else {
-                    launchAtLoginEnabled = LaunchAtLogin.isEnabled
-                    launchAtLoginNote = nil
+                    form.launchAtLoginEnabled = LaunchAtLogin.isEnabled
+                    form.launchAtLoginNote = nil
                 }
             }
         )
@@ -327,12 +339,12 @@ private struct IconProviderEditor: View {
 
 private struct ShortcutRecorder: View {
     @Binding var combo: KeyCombo?
-    @State private var recording = false
+    @StateObject private var state = RecorderState()
 
     var body: some View {
         HStack(spacing: 4) {
             Button {
-                recording.toggle()
+                state.recording.toggle()
             } label: {
                 Text(label)
                     .font(.system(size: 13, design: .rounded))
@@ -340,9 +352,9 @@ private struct ShortcutRecorder: View {
                     .frame(minWidth: 92)
             }
             .buttonStyle(.bordered)
-            .tint(recording ? Color.accentColor : nil)
+            .tint(state.recording ? Color.accentColor : nil)
 
-            if combo != nil && !recording {
+            if combo != nil && !state.recording {
                 Button {
                     combo = nil
                 } label: {
@@ -354,12 +366,12 @@ private struct ShortcutRecorder: View {
             }
         }
         .background {
-            ShortcutMonitor(isRecording: $recording, combo: $combo)
+            ShortcutMonitor(isRecording: $state.recording, combo: $combo)
         }
     }
 
     private var label: String {
-        if recording { return L10n.t(.typeShortcut) }
+        if state.recording { return L10n.t(.typeShortcut) }
         return combo?.display ?? L10n.t(.shortcutNone)
     }
 }
